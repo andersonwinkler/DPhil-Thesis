@@ -1,0 +1,1243 @@
+\chapter{Multi-level block permutation}
+\setstretch{\lspac}
+
+\section{Introduction}
+
+In the context of hypothesis testing using the general linear model (\textsc{glm}) \citep{Scheffe1959, Searle1971}, permutation tests can provide exact or approximately exact control of false positives, and allow the use of various non-standard statistics, all under weak and reasonable assumptions, mainly that the data are \emph{exchangeable} under the null hypothesis, that is, that the joint distribution of the error terms remains unaltered after permutation. Permutation tests that compare, for instance, groups of subjects, are of great value for neuroimaging \citep{Holmes1996, Nichols2002}, and in \citet{Winkler2014}, extensions were presented to more broadly allow tests in the form of a \textsc{glm}, and also to account for certain types of well structured non-independence between observations, which ordinarily would preclude the use of permutation methods. This was accomplished by redefining the basic exchangeable unit from each individual datum to blocks of data, i.e., rather than asserting exchangeability across all observations of a given experiment, blocks of exchangeable units are defined; these \emph{exchangeability blocks} (\textsc{eb}s) can be rearranged as a whole (\emph{whole-block exchangeability}), or the observations within block can be shuffled among themselves (\emph{within-block exchangeability}), using either permutations, sign flippings, or permutations combined with sign flippings.
+
+In the same work, the $G$-statistic, a generalisation over various commonly used statistics, including the $F$-statistic, was proposed. $G$ is robust to known heteroscedasticity (i.e., the situation in which the variances are known to be not equal across all observations, which can be then classified into variance groups) and can be used with the \textsc{glm}, ensuring that pivotality\footnote{A \emph{pivotal} statistic has a sampling distribution that does not depend on unknown parameters.} is preserved, a crucial requisite for exact control over familywise error rate (\textsc{fwer}) using the distribution of the most extreme statistic \citep{Westfall1993}, as needed in many neuroimaging studies. Indeed, the use of \textsc{eb}s allows for variances to be heterogeneous, provided that the groups of observations sharing the same variance (i.e., \emph{variance groups}, \textsc{vg}s) \citep{Woolrich2004} are compatible with the \textsc{eb}s; specifically, for within-block exchangeability the \textsc{vg}s must coincide with the blocks, and for whole-block exchangeability they must include one or more observations from each block in a consistent order.
+
+This arrangement, using a statistic that is robust to heteroscedasticity, the use of variance groups, and the imposition of restrictions on exchangeability through the use of \textsc{eb}s, allows inference on various designs that, otherwise, would be much more difficult to do non-parametrically. These designs include paired tests, longitudinal designs, and other common tests that involve repeated measurements. However, certain study designs, despite exhibiting well-structured dependence between observations, still cannot be accommodated in the above framework. This occurs when the overall covariance structure is known, but its exact magnitude is not. An example occurs when multiple measurements per subject are performed in more than one session, with more than one measurement per session: the measurements within session may be exchangeable, but not across sessions. Another example is for studies using siblings, such as designs using discordant sib-pairs (in which only one sibling is affected by a given disorder), or using twins: permutations that disrupt the constitution of any sibship cannot be performed, as this would violate exchangeability.
+
+Studies such as these are relatively common, notably those that involve siblings. However, whereas in classical twin designs the central objective is to quantify the fraction of the variation in a measurement (trait) that can be explained by the familial relationship between subjects after potential confounds have been taken into account, a quantity known as \emph{heritability}, here the concern is with a general linear model, and the objective is to test the influence of explanatory variables on the observed data. In other words, the interest lies on the relationship between the covariates and the main trait, while the non-independence between observations, which is a feature of interest in a heritability study, is here a form of nuisance that imposes restrictions on exchangeability for permutation inference for the \textsc{glm}.
+
+Rather than inadvertently breaking these restrictions, here we propose to test the null hypothesis using a subset of all otherwise possible permutations, only allowing the rearrangements that respect exchangeability, thus retaining original joint distribution unaltered\footnote{Exchangeability with respect to a subset of all possible permutations is termed \emph{weak exchangeability} \citep{Good2005}. For conciseness, we will use the solitary term ``exchangeability'', while making clear the subsets of permutations for which this is valid.}. As in our previous work, we treat observations or entire blocks of data as weakly exchangeable, but here we further extend the definition of \textsc{eb}s to allow more complex designs to be addressed. This is accomplished through the use of \emph{multi-level exchangeability blocks}, in which levels consist of \emph{nested} blocks; for each such block the state of within- or whole-block exchangeability can be specified. The blocks are defined hierarchically, based on information about the dependence within data, but not requiring the modelling of the actual dependency. Even though the possibility of using nested blocks was anticipated in \citet{Winkler2014} (``Whole-block and within-block can be mixed with each other in various levels of increasing complexity'', page 386), nothing further was studied or presented at the time. Here we provide a comprehensive description of the approach, investigate its performance, its power, and present an applied example using the data structure of the ongoing Human Connectome Project (\textsc{hcp}). In the \ref{sec:ptree:implementation}, we present an implementation strategy.
+
+\section{Theory}
+
+\subsection{Terminology}
+
+When contrasting the method described in this article with simple data rearrangement, various terms could be adopted: \emph{single-level} vs.\ \emph{multi-level} block shuffling, emphasising the levels of relationship between observations; \emph{unrestricted} vs.\ \emph{restricted}, emphasising the imposition of restrictions on how the data are allowed to be rearranged at each shuffling; \emph{free} vs.\ \emph{tree} shuffling, emphasising the tree-like structure of the relationships between observations that allow shuffling. All these terms have equivalent meaning in the context of this article, and are used interchangeably throughout. The generic terms \emph{shuffling} and \emph{rearrangement} are used when the distinction between permutations, sign flippings or permutations with sign flippings is not relevant.
+
+\subsection{Notation}
+\label{sec:ptree:notation}
+
+We consider a \textsc{glm} that can be expressed as $\mathbf{Y} = \mathbf{M}\boldsymbol{\psi} + \boldsymbol{\epsilon}$, where $\mathbf{Y}$ is the $N \times 1$ vector of observed data, $\mathbf{M}$ is the full-rank $N \times r$ design matrix that includes explanatory variables (i.e., effects of interest and possibly nuisance effects), $\boldsymbol{\psi}$ is the $r \times 1$ vector of $r$ regression coefficients, and $\boldsymbol{\epsilon}$ is the $N \times 1$ vector of random errors. Estimates for the $\boldsymbol{\psi}$ can be computed by ordinary least squares, i.e., $\boldsymbol{\hat{\psi}} = \mathbf{M}^{+}\mathbf{Y}$, where the superscript $(^{+})$ denotes a pseudo-inverse. One generally wants to test the null hypothesis that a given combination (contrast) of the elements in $\boldsymbol{\psi}$ equals to zero, that is, $\mathcal{H}_{0} : \mathbf{C}'\boldsymbol{\psi} = \boldsymbol{0}$, where $\mathbf{C}$ is a $r \times s$ full-rank matrix of $s$ contrasts, $1 \leqslant s \leqslant r$. The commonly used $F$ statistic can be computed as usual and used to test the null hypothesis. When $s = 1$, the Student's $t$ statistic can be computed as $t=\mathsf{sign}(\boldsymbol{\hat{\psi}})\sqrt{F}$. A p-value for the statistic is calculated by means of shuffling the data, the model, the residuals, or variants of these \citep[Table~2]{Winkler2014}. In any of these cases, to allow rearrangements of the data, some assumptions need to be made: either of \emph{exchangeable errors} (\textsc{ee}) or of \emph{independent and symmetric errors} (\textsc{ise}). The first allows permutations, the second sign flippings; if both are available for a given model, permutations and sign flippings can be performed together. These rearrangements are represented by permutation and/or sign flipping matrices $\mathbf{P}$, and the set of all such matrices allowed for a given design is denoted as $\mathcal{P}$.
+
+At its simplest, the \textsc{eb}s for within- or whole-block exchangeability can be identified or represented by a set of indices $\{1$, $2$, \ldots, $B\}$, one for each of the $B$ blocks. A vector of size $N \times 1$, can be used to indicate to which \textsc{eb} each observation from $\mathbf{Y}$ belongs (Figure~\ref{fig:notation}, \emph{left}); an extra flag is passed to the shuffling algorithm (such as the \texttt{randomise} algorithm) to indicate whether the rearrangements of the data should happen as within- or as whole-block. While this notation probably covers the majority of the most common study designs, it allows only within- \emph{or} whole-block, but not \emph{both} simultaneously; in other words, if in a study the observations can be permuted within block, and the blocks as a whole can also be permuted, such notation does not convey all possibilities for reorganising the data while preserving their joint distribution unaltered, and algorithms would perform fewer shufflings than those that are effectively allowed.
+
+\begin{figure}[!b]
+\centering
+\caption{\emph{(on page \pageref{fig:notation_noref})} Different notations for the specification of exchangeability blocks; in this example, 3 blocks of 3 observations each.
+\emph{Top-left:} In a single-column notation, each block has its index (here 1, 2, and 3, shown in different, random colours for clarity), and either within- or whole-block exchangeability are possible, but not both simultaneously. The specification of which kind of shuffling is to be done requires extra information, as a flag passed to the algorithm that permutes the data.
+\emph{Top-right:} In a multiple-column notation, that information is encoded by virtue of the indices having a sign indicating whether the exchangeable units of a block at a given level should be shuffled as a whole ($+$) or kept fixed ($-$); these are shown respectively in blue and red. The signs define whether it is possible to perform rearrangements within-block, or of the blocks as a whole, or both. The rightmost example serves only to illustrate the notation, and is not useful in practice as all the observations would need to remain still.
+\emph{Middle:} Example permutations are shown, with the observation indices coloured for clarity.
+\emph{Bottom:} Visual representations using a tree diagram. The levels can be depicted as branching from a central (top/central) node, akin to a tree in which the most peripheral elements (leaves) represent the observations. The nodes from which the branches depart can be labelled as allowing permutations $(+)$ or not $(-)$, shown respectively in blue and red colours. The letters (a) through (c) refer to the variance groups in Figure~\ref{fig:vargrps}.}
+\label{fig:notation}
+\end{figure}
+
+\begin{figure}[!p]
+\centering
+\includegraphics{figures/notation.pdf}
+\label{fig:notation_noref}
+\end{figure}
+
+This can be addressed by extending the notation from a single column to a multi-column array, allowing nested \textsc{eb}s to be defined, such that blocks can contain sub-blocks, in a hierarchical fashion, and where each column represents a level; we use the leftward columns to indicate higher, and rightward to indicate lower levels. More columns alone, however, are not sufficient, because at each level, shufflings of observations or of sub-blocks can be allowed within-block, or the blocks at that level can be shuffled as a whole. Hence to discriminate between one type or the other, we use negative indices to indicate that the exchangeable units at the level immediately below should not be permuted, and positive indices indicate that shuffling of these units is allowed as usual (Figure~\ref{fig:notation}, \emph{right}). The exchangeable units can be sub-blocks, which can contain yet other sub-blocks, or observations if the next level immediately below is the last.
+
+These two notations, i.e., using single- or multi-column indices, do not represent mathematical entities, and are not meant to be used for algebraic manipulation; rather, these notations are shorthand methods to represent structured relationships between observations. The covariance structure prevents unrestricted shuffling from being considered, but it often permits shufflings to happen in a certain orderly manner that preserves the joint distribution of the data. These notations are to be used by the algorithm that performs the test to construct the permutation and/or sign flipping matrices, which then can be used to effectively disarrange the model to construct the distribution of the statistic under the null hypothesis.
+
+\subsection{Visual representation}
+
+The notation using multiple columns encapsulates all the information necessary not only for the rearrangements to be constructed, but also to depict the relationships between the observations in a tree-like diagram, highlighting their hierarchy, as shown in the lower panel of Figure~\ref{fig:notation}. Branches can only be shuffled with each other if their size and internal covariance structure are perfectly identical; this information is contained in the signs and indices used to represent each block: positive indices (shown in blue) allow them to be permuted; negative (in red) prevents permutation and keeps the branches in their fixed positions. The permutation of branches at lower levels (when these exist) is controlled by the nodes at these lower levels, independently from those at higher levels or within the same level.
+
+Using the tree diagram, it becomes clear that the terms ``within-block'' and ``whole-block'', that have been used so far to describe exchangeability and permutation strategies, become no longer necessary, as either the branches can be shuffled, or they cannot. It is also helpful in emphasising that more complicated designs can be considered using multi-level blocks, in which even the distinction between within- and  whole-block is softened, as each level in the multi-column notation is not restricted to contain purely positive or negative indices restricting (or not) the shuffling of their constituent sub-blocks (branches). These can be present alongside each other if immediately below a level in which shuffling is not allowed, such that some branches may be allowed to be shuffled, whereas others are not. It may also be the case that some levels need to be included in the notation only so that the number of levels remains the same across all branches of the tree, from the top node to the most distal (leaves), without affecting the construction of $\mathcal{P}$, but ensuring that the notation can be stored, without gaps, in a two-dimensional array; in the visual representation these are shown as small, sign-less nodes. Figure~\ref{fig:trees2} (\emph{left} and \emph{centre}) exemplifies these cases. Although the multi-column notation and the corresponding tree can become very complex, the simple, unrestricted exchangeability can also be accommodated, as shown in Figure~\ref{fig:trees2} (\emph{right}).
+
+\begin{figure}[!p]
+\centering
+\hspace*{-.65cm}\includegraphics{figures/trees2.pdf}
+\vspace{.3cm}
+\caption{The multi-level definition of blocks allows more complex relationships between observations.
+\emph{Left:} Three blocks of identical structure (2nd column) can be shuffled as a whole (as indicated by the positive indices in the 1st column); within each (3rd column), only two out of their three constituting observations can be swapped (1 and 2, 4 and 5, and 7 and 8), whereas the third on each (3, 6 and 9) cannot; levels for these last branches are completed with blocks for which the sign has no meaning (in black), as they remain unaltered towards the next level (4th column), and represent no actual branching. In the visual representation, these black blocks are shown as small black dots on continuous branches. This example could represent 3 sets of siblings, each composed of a pair of monozygotic twins and a third non-twin.
+\emph{Centre:} An example showing that it is possible to mix types of blocks in the same level (2nd column). As shown, the first two blocks in the 2nd column cannot be swapped despite similar coding, and neither of these can be permuted with the third, which has a different structure consisting of three observations (7, 8 and 9) that can be shuffled freely. This example could represent 3 sets of siblings, the first a pair of monozygotic twins and a non-twin, the second a pair of dizygotic twins and a non-twin (if certain environmental effects are considered), and the third a set of three non-twin siblings.
+\emph{Right:} The same notation can also accommodate simple designs. Here all 9 observations can be permuted without restrictions on exchangeability.}
+\label{fig:trees2}
+\end{figure}
+
+\subsection{Variance groups and the $G$-statistic}
+
+When the variances can be assumed to be the same throughout the sample, the classical $F$ and the Student's $t$ statistics can be used; these statistics have sampling distributions that do not depend on any unknown population parameters, but solely on the degrees of freedom, i.e., these are pivotal statistics. However, if homoscedasticity cannot be assumed, although $F$ and $t$ can still be used with permutation tests in general, they cannot be used to correct for multiple testing using the distribution of the most extreme statistic. The reason is that under heteroscedasticity, these statistics cease to be pivotal, and follow instead distributions that depend on the heterogeneous variances for the different groups of observations, causing them to be no longer adequate for \textsc{fwer} correction. Instead, a statistic that is robust to heteroscedasticity is necessary.
+
+The $G$-statistic \citep{Winkler2014} was proposed to address this concern; this statistic is a generalisation of various other well established statistics, including $F$ and $t$, as well as the $v$-statistic used for the classical Behrens--Fisher problem. The definition of the variance groups used to calculate $G$ is based on knowledge about the data, and such groups need to be constructed together with the definition of the blocks. However, \textsc{vg}s and \textsc{eb}s represent different concepts; although they may coincide for simple designs, they do not need to. The \textsc{eb}s are used to indicate sets of observations that must remain together in every permutation due to having a non-diagonal \emph{covariance} structure, and are used by the permutation algorithm to rearrange the data many times to build the empirical distribution. The \textsc{vg}s, however, are used to indicate sets of observations that possess the same \emph{variance}, and are used to estimate the sample variance(s) when computing the statistic. Despite the distinction, any pair of observations that have the possibility of being swapped according to the \textsc{eb} structure must be in the same \textsc{vg}; observations in different variance groups cannot be permuted as that would modify the joint distribution, thus violating exchangeability.
+
+For simple within-block permutation, the most restrictive configuration for the variance groups, that is, the configuration in which fewer observations need to be assumed to share the same variance, is such that each block corresponds to its own \textsc{vg}. For simple whole-block permutation, on the other hand, the first observation from each block, together, constitute a \textsc{vg}, the second observation from each block, together, another \textsc{vg}, and so forth. The minimum set of variance groups for more complicated designs can be derived similarly from the configuration of the exchangeability blocks; examples are shown in Figure~\ref{fig:vargrps}. The stringency of this definition lies in that, depending on the configuration of the \textsc{eb}s, each \textsc{vg} can contain only the smallest possible number of observations that can be assumed to have the same variance given the covariance structure imposed by the blocks. Such definition can, however, be relaxed by merging these minimum groups whenever homoscedasticity across more than one \textsc{vg} can be considered, while retaining the \textsc{eb}s unaltered. Whether merger, or any other definition, for the \textsc{vg}s should be sought for a given design may depend on information about the data or on the design itself. For a simple paired $t$-test, for instance, although each pair could in principle constitute a \textsc{vg} on its own, homogeneous variances can fairly well be assumed, with the benefit of much better variance estimates than would be obtained with groups of two sole observations.
+
+Regardless of which strategy is used to define the variance groups, and irrespective of the indices used to represent each of them, the column vector containing these indices must be invariant with respect to the permutations that are allowed for a given design. In other words, let $\mathbf{v}$ be the column vector of length $N$ containing the indices that represent each variance group, such as those in Figure~\ref{fig:vargrps}. For any permutation matrix $\mathbf{P} \in \mathcal{P}$, $\mathbf{P}\mathbf{v}=\mathbf{v}$, that is, $\mathbf{v}$ is a common eigenvector for all permutation matrices in  $\mathcal{P}$. Any permutation that breaks this equality must not be used to test the null hypothesis, as this would mix observations that belong to different \textsc{vg}s, thus violating exchangeability. Likewise, a definition of groups that does not meet this criterion must not be used.
+
+\begin{figure}[!t]
+\centering
+\hspace*{-0cm}\includegraphics{figures/vargrps.pdf}
+\vspace{1cm}
+\caption{Variance groups defined from the exchangeability blocks (a)--(c) shown in Figure~\ref{fig:notation}, and (d)--(f) in Figure~\ref{fig:trees2}. These are the most restrictive configurations for the \textsc{vg}s that are possible given the structure imposed by the \textsc{eb}s. If, however, despite the covariance structure between observations, their variances are known to be or can be assumed to be homogeneous, some or all of these groups can be merged, with the additional benefit of improving the variance estimates. Alternatively, the groups can be entirely replaced by a different definition if additional information from the variance of the data is available. In (e), note two groups with only one observation each; see the main text for details.}
+\label{fig:vargrps}
+\end{figure}
+
+\subsection{Number of permutations}
+
+With the multi-level block permutation strategy, the rules to calculate the number of permutations are similar, yet more general than in the case of a single level that could be represented with a single-column notation. The number still depends on the number of repeated rows in the design matrix for methods as Manly and ter Braak \citep{Manly1986, terBraak1992} or, for methods as Draper--Stoneman and Freedman--Lane \citep{Draper1966, Freedman1983}, on the number of repeated rows across only the columns that are tested in the contrast after the model has been partitioned into effects of interest and nuisance effects.
+
+Once the tree has been constructed, for the \textsc{ee} assumption, and in the absence of repetitions in the design as described above, the number of permutations can be calculated separately for each node in which shuffling is allowed as $B!$, with $B$ denoting the number of branches that begin at that node. If however, there are branches with identical structure and containing the repetitions in the design matrix, the number of possible permutations for that node is then $B!\left/\prod^{M}_{m=1}B_m!\right.$, where $M$ is the number of unique branches beginning at that node, and $B_m$ the number of times each of the $M$ unique branches begins at that node. The number of permutations for nodes that cannot be permuted is simply 1, that is, no permutation. With the number of permutations at each node calculated, the overall number of possible permutations for the whole design (whole tree) is the product of the number of possible permutations for all the nodes.
+
+For \textsc{ise}, the number of sign flippings at the highest node in which shuffling is allowed is $2^B$, and 1 for all other nodes that lie below (distal) in the hierarchy. For the nodes in which shuffling is not allowed, the number of possible flips is 1, that is, no sign flippings are allowed, but it can still be higher than 1 for the nodes that lie below in the hierarchy. Unlike with permutations, the eventual presence of repeated elements in the design matrix does not affect the number of possible sign flippings. The number of possible sign flippings for the whole design is the product of the number of sign flippings for all the nodes.
+
+When both \textsc{ee} and \textsc{ise} assumptions are valid for a given design, permutations can happen with sign flipping, and the total number of possible rearrangements is just the product of the number of permutations with the number of sign flippings. Regardless of the kind of shuffling strategy adopted, the number of possible rearrangements can be extremely large, even for sample sizes of relatively moderate size. Not all of them need to be performed for the test to be valid and sufficiently exact; a random subset of all possible rearrangements can be sufficient for accurate hypotheses testing.
+
+\subsection{Power and outliers}
+
+The set of all rearrangements that can be performed while respecting the structure of the data is termed the \emph{permutation space} \citep{Pesarin2010}. The restrictions imposed by the \textsc{eb}s cause this space to be reduced, sometimes considerably, as none of the rearrangements that would violate exchangeability are performed. If the restrictions are such that the permutation space is not a representative, uniform sample from what the space would be without such restrictions, power may be reduced. In the Section~\ref{sec:ptree:evaluation} we assess various configurations for the multi-level \textsc{eb}s and their impact on the ability to detect true effects.
+
+For the same reason, even though most permutation strategies tend to be robust to outliers \citep{Anderson1999}, the dependence structure and the multi-level blocks may amplify the effect of their presence, with results that may be difficult to predict, either in terms of conservativeness or anticonservativeness. Such problems may be minimised by providing some treatment of these extreme values; some possible remedies include censoring, trimming, replacement for ranks or quantiles, conversion of quantiles to a normal distribution, and robust regression.
+
+\section{Implementation}
+\label{sec:ptree:implementation}
+
+\subsection{Permutation of the tree branches}
+
+A na\"{i}ve way to select only the permutations that respect the data structure would be to create (randomly or lexicographically) permutation matrices as if the data could be shuffled freely, and then test whether these matrices would respect the configuration of the \textsc{eb}s at the various levels. If yes, the permutation matrix is used, otherwise it is discarded. The problem with this approach is not only that the process of testing can be slow, but also the restrictions imposed by the blocks can reduce the number of possible permutations by various orders of magnitude, implying that for some designs, for each valid permutation that is found, enormous numbers of permutations would need to be discarded, in a very inefficient process.
+
+However, the diagram using a tree to represent the blocks and sub-blocks, and their hierarchical relationship, does not constitute merely a visual resource. The same tree structure can be used to efficiently implement a permutation algorithm that shuffles the branches, even in programming languages that do not offer natively a tree type, such as C or Octave/\textsc{matlab}, as trees can be constructed with pointers, or with generic types, such as cells. When constructing the tree representation, each node must store three pieces of information, which are all updated as the permutations and/or sign flips are performed:
+
+\begin{enumerate}
+\item A three-column array, to be used under the \textsc{ee} assumption, and modified at each permutation, with as many rows as branches beginning at the node. The first column contains a sequence of integers that represents each of the branches. Branches that have identical structure and contain identical leaves (i.e., repeated rows in the relevant part of the design matrix necessary to test the null hypothesis) receive the same index and so this column can contain repeated values. This sequence is used by the Algorithm ``\textsc{l}'' \citep{Knuth2005}, the algorithm that performs lexicographic permutations without repetitions; as the algorithm runs, the rows are permuted as a whole. The second column contains the indices that represent the current permutation in relation to the original sequence, that is, the indices that rearrange the original sequence of branches into the current state after permuting. Reverse-indexing this sequence can reset the permuted branches back to the original, unpermuted state. The third column contains the indices that rearrange the previous state into the current state and, just before running the Algorithm ``\textsc{l}'' for the next permutation, this column is regenerated as a sequence $\{1$, $2$, \ldots, $B\}$, with $B$ here denoting the number of branches (sub-blocks) in the current level; these are the indices that effectively permute the branches. If branches that begin at the node cannot be permuted (negative indices in the multi-level block notation), the whole array is replaced by some distinct marker that can be tested quickly, such as a not-a-number (\texttt{NaN}) or simply a zero (0).
+\item A counter, to be used under the \textsc{ise} assumption. The counter can be in a numeral system of radix 2 (e.g., using $-1$ and $+1$ as symbols in lieu of the conventional binary 0 and 1), with as many digits as branches starting at the node, and representing in a direct manner the current state of the sign flippings for each branch.
+\item The branches that begin at the node. Each branch is constituted of another tree structure, in a pattern that replicates itself recursively from the top level to the most distal branches.
+\end{enumerate}
+
+Once the tree has been constructed, shufflings can be performed exhaustively or, if the number of possible rearrangements is too large, only a subset needs to be performed. To generate any single permutation in lexicographic order, the tree is swept from the top node, proceeding recursively down to the next lower level before moving into the next branch in the same level, skipping the nodes in which the last lexicographic permutation has been reached, and stopping when a single pairwise permutation of branches can be performed. The respective branches are then swapped, all previous nodes already visited are reset back to their original, unpermuted state, and a permutation vector is constructed by concatenating the (now permuted) indices of the observations (leaves), from which the permutation matrix is generated.
+
+For sign flippings, the process is similar: the tree is swept, but instead of computing the next permutation, the counter is incremented. Nodes that have reached the last possible sign flipping (i.e., with all signs reversed) are skipped; when a node can have its counter incremented, the sweeping stops, the counter is incremented, and all previous nodes that had been skipped are reset back to their original state. As the counter uses a numeral system with base 2, the counter itself constitutes a vector of sign flips that can be applied to the branches that begin at that node, and generating the sign flipping matrix is then trivial.
+
+As described, the tree representation allows computing exhaustively and lexicographically all possible rearrangements. However, the tree can also be perturbed randomly, with the branches that begin in all its nodes being permuted and/or sign flipped, a feature useful when performing only a small subset of all possible shufflings.
+
+\subsection{Variance groups}
+
+The most restrictive set of \textsc{vg}s can also be defined from the same tree structure. The nodes of the tree are swept from the first branch in the top node, proceeding recursively down to the next lower level before moving into the next branch in the same level. At the lowest level, observations (leaves) that can be permuted are assigned to the same variance group; those that cannot are each assigned to a distinct group. At the intermediate nodes, between the top node and the terminal leaves, those in which permutation of the branches is allowed have their corresponding \textsc{vg}s defined for the first branch, then replicated for all remaining branches at that level without the need to visit their lower levels. For the nodes in which permutation of branches is not allowed, each branch has its own set of \textsc{vg}s defined. A counter is passed down and up the levels as each node is visited, being incremented to the next integer every time a new \textsc{vg} is created.
+
+\subsection{Availability}
+
+Implementation for Octave/\textsc{matlab} of these two algorithms, directly usable with the \textsc{glm} for both imaging and non-imaging data, are available in the tool \emph{Permutation Analysis of Linear Models} (\textsc{palm}), which can be downloaded freely from \href{http://www.fmrib.ox.ac.uk/fsl}{www.fmrib.ox.ac.uk/fsl}. We name the first, that permutes the tree branches, as ``\textsc{palm}-Tree''.
+
+\section{Evaluation method}
+\label{sec:ptree:evaluation}
+
+\subsection{Error rates and power}
+
+Two dependence structures, named datasets \textsc{a} and \textsc{b}, were simulated to evaluate the permutation strategy. Both use mixtures of levels that can or that cannot be shuffled. For the dataset \textsc{a}, $N=36$ observations were simulated, grouped into nine exchangeability blocks of four observations each, and each of these further divided into two blocks of two. Not all levels were allowed to be shuffled freely, and the structure is shown in Figure~\ref{fig:treesAB} (\emph{left}). For dataset \textsc{b}, $N=27$ observations were divided into nine \textsc{eb}s of three observations each; and each of these further divided into two blocks, one with two, and one with one observation, as shown in Figure~\ref{fig:treesAB} (\emph{right}). Although these may appear somewhat artificial for practical use, we wanted examples that would restrict the number of possible shufflings, to test the multi-level strategy in relatively difficult scenarios. The structure in dataset \textsc{a} precisely emulates a twin study with nine sets of siblings, each comprised of a pair of monozygotic twins and a pair of non-twins (or of dizygotic twins). Dataset \textsc{b} uses a similar scheme, but further restricts the possibilities for shuffling by having just one non-twin in each set of siblings.
+
+\begin{figure}[!tp]
+\centering
+\includegraphics{figures/treesAB.pdf}
+\vspace{1cm}
+\caption{The two dependence structures, \textsc{a} and \textsc{b}, used to assess error rates and power.
+\emph{Top:} Multi-level block definition.
+\emph{Bottom:} Visualisation as a tree diagram.} 
+\label{fig:treesAB}
+\end{figure}
+
+Using the same notation as in Section \ref{sec:ptree:notation}, 500 response variables (data vectors $\mathbf{Y}$) were simulated for each dataset, using the model $\mathbf{Y} = \mathbf{M}\boldsymbol{\psi} + \boldsymbol{\epsilon}$; each variable might represent, for instance, a voxel or vertex in a brain image. The residuals, $\boldsymbol{\epsilon}$, were simulated following either a Gaussian distribution (with zero mean and unit variance), a Weibull distribution (skewed, with scale parameter 1 and shape parameter 1/3, shifted and scaled so as to have expected zero mean and unit variance), or a Laplace distribution (kurtotic, with zero mean and unit variance)\footnote{The actual skewness and kurtosis for these two distributions are either fixed or functions of their parameters, and therefore were held constant throughout the simulations. For Weibull, the skewness is $\left(\Gamma\left(1+3/k\right)\lambda^3-3\mu\sigma^2-\mu^3\right)\left/\sigma^3\right. \approx 19.58$, where $k$ is the shape and $\lambda$ the scale parameter. For Laplace, the excess kurtosis is $3$.}. In order to introduce dependence between the residuals, for simplicity and without loss of generality to any study in which there is dependence among the data, including repeated measurements, each observation was treated as if from a participant in a twin study design, as described above, and an $N \times N$ correlation matrix $\boldsymbol{\Omega}$, was created using the coefficient of kinship, $2\phi_{ij}$, between subjects $i$ and $j$ \citep{Jacquard1970}, such that $\boldsymbol{\Omega}=2\boldsymbol{\Phi}h_{\boldsymbol{\epsilon}}^{2} + \mathbf{I}(1-h_{\boldsymbol{\epsilon}}^{2})$, where $\boldsymbol{\Phi}$ is the matrix with the coefficients $\phi_{ij}$, and $\mathbf{I}$ is the identity matrix. The benefit of constructing the simulations in this way is that the strength of the dependence structure can vary linearly in the interval 0 to 1 using a single parameter, here denoted as $h_{\boldsymbol{\epsilon}}^{2}$, which coincides, in quantitative genetics and under certain assumptions, with the heritability of the measurement after explanatory or nuisance variables have been considered. The coefficient of kinship ($2\phi_{ij}$) is set to 1 for monozygotic twins, 0.5 full siblings that are not monozygotic twins, 0.25 for half siblings, and 0 for unrelated subjects. For these simulations, we used different values for the heritability of the residuals as $h_{\boldsymbol{\epsilon}}^{2}$ $=$ $\{0,$ $0.4,$ $0.8\}$. To introduce the desired correlation structure, $\boldsymbol{\Omega}$ was subjected to a Cholesky decomposition such that $\boldsymbol{\Omega}=\mathbf{L}'\mathbf{L}$, then redefining the residuals as $\mathbf{L}'\boldsymbol{\epsilon}$.
+
+The dependent data, $\mathbf{Y}$, were generated by adding the simulated effects, $\mathbf{M}\boldsymbol{\psi}$, to the residuals, $\boldsymbol{\epsilon}$, with $\boldsymbol{\psi}$ $=$ $[\psi_1 \; 0]'$, $\psi_1$ being either 0 or
+$$t^{-1}_{\text{cdf}}\left(1-\alpha ; N-\mathsf{rank}\left(\mathbf{M}\right)\right)\left/\sqrt{N}\right.$$
+where $\alpha$ $=$ $0.05$ is the significance level of the permutation test to be performed at a later stage, ensuring a calibrated signal strength sufficient to yield an approximate power of 50\% with Gaussian errors, irrespective of the sample size. The actual effect was coded in the first regressor only, here denoted $\mathbf{m}$, the second regressor modelling an intercept. This regressor was constructed as a set of random values following a Gaussian distribution with zero mean and unit variance. As in real experiments, such effects of interest may be (as with the residuals) not independent across observations, three different values for the strength of this dependence were simulated, using $h_{\mathbf{m}}^{2}$ $=$ $\{0,$ $0.4,$ $0.8\}$. These values are equivalent to the heritability of $\mathbf{m}$ in the context of genetics, yet without loss of generality to studies in which there is dependence between the data that constitute any individual independent variable, including certain designs involving repeated measurements.\footnote{Note that errors on measurements are not part of these simulations, such that parameter estimates remain consistent.}
+
+Permutations, sign flippings, and permutations with sign flippings were performed, either freely or respecting the dependence structure. In each case, 500 shufflings were performed for each of the 500 variables, and the whole process was repeated 500 times, allowing histograms of p-values to be constructed, as well as to estimate the variability around the heights of the histogram bars. Confidence intervals (95\%) were computed for the empirical error rates and power using the Wilson method \citep{Wilson1927}. Significance levels were also compared using Bland--Altman plots \citep{Bland1986}, modified so as to include the confidence intervals around the means of the methods.
+
+\subsection{Power}
+
+The evaluations above were used to assess error rates and power according to the degree of non-independence between observations and distribution of the errors. To further investigate how the restrictions imposed by the exchangeability blocks could affect power, other dependence structures were considered to shuffle the data, in addition to the datasets \textsc{a} and \textsc{b} above; these were named \textsc{c} through \textsc{i} (Figures~\ref{fig:treesCG}, \ref{fig:treeHCP_full}, and \ref{fig:treeHCP_dz2sib}). The configuration \textsc{c} corresponds to freely shuffling 11 observations; \textsc{d} corresponds to a small set of 5 sibships with a total of 18 subjects, mixing whole-block and within-block at different levels; \textsc{e} is formed by 15 observations, organised in 5 blocks of 3 observations each, with shufflings being allowed within-block only; \textsc{f} is similar, but with whole-block rearrangements only, and \textsc{g} also similar, but allowing both whole-block and within-block simultaneously; configurations \textsc{h} and \textsc{i} use the family structure of the Human Connectome Project at the time of the \textsc{hcp-s}500 release (more details below): in \textsc{h}, dizygotic twins are treated as a category on its own, thus accounting for the possibility of shared, non-genetic effects within twin pair, whereas in \textsc{i}, dizygotic twins are treated as ordinary, non-twin full siblings. The number of possible permutations and sign flippings for each of these structures is shown in Table~\ref{tab:nperms}.
+
+\begin{figure}[!tp]
+\centering
+\hspace*{0cm}\includegraphics{figures/treesCG.pdf}
+\vspace{1cm}
+\caption{Tree diagrams \textsc{c}--\textsc{g}, used to assess power, in addition to \textsc{a}, \textsc{b}, textsc{h} and \textsc{i} (shown in Figures~\ref{fig:treesAB}, \ref{fig:treeHCP_full} and \ref{fig:treeHCP_dz2sib}). In \textsc{c}, observations can be shuffled without restrictions. In \textsc{d}, which represent a set of five sibships, \textsc{mz} refers to each subject of a pair of monozygotic twins, \textsc{dz} to dizygotic twins, and \textsc{fs} to full siblings (non-twin and not half siblings); the numbers in parentheses indicate the number of each type of sibship in the tree (see also Figure~\ref{fig:treeHCP_full}). In \textsc{e}, observations can be shuffled only within-block; in \textsc{f} the blocks as a whole can be shuffled, and in \textsc{g}, shufflings are allowed within-block, and the blocks as a whole can also be shuffled.}
+\label{fig:treesCG}
+\end{figure}
+
+\begin{figure}[!p]
+\centering
+\includegraphics[scale=.8]{figures/treeHCP_full.pdf}
+\caption{Tree diagram depicting the structure present among the subjects of the Human Connectome Project \textsc{hcp}, at the time of the release \textsc{hcp-s500}, with 518 subjects. The numbers in parentheses indicate how many of each type of sibship set are present.}
+\label{fig:treeHCP_full}
+\end{figure}
+
+\begin{figure}[!p]
+\centering
+\includegraphics[scale=.8]{figures/treeHCP_dz2sib.pdf}
+\caption{Tree diagram representing the structure among the same 518 subjects of the \textsc{hcp-s500} release, shown in Figure~\ref{fig:treeHCP_full}, but treating dizygotic twins as ordinary siblings, therefore not accounting for the possibility of shared common non-genetic effects within dizygotic twin pair.}
+\label{fig:treeHCP_dz2sib}
+\end{figure}
+
+\begin{table}[!tp]
+\caption{Number of permutations (\textsc{ee}) and sign flippings (\textsc{ise}) for the 9 dependence structures simulated to examine power. If there were ties in the data, the number of possible permutations would be smaller. When both \textsc{ee} and \textsc{ise} can be used, such that the data can be permuted and sign flipped, the number of possible rearrangements is simply the product of the number of permutations with the number of sign flippings. The footnote shows in detail how these values were calculated for the more complex configurations.}
+\begin{center}
+{\small
+\begin{tabular}{@{}m{10mm}<{\raggedright}
+                   m{29mm}<{\raggedright}
+                   m{28mm}<{\raggedright}
+                   m{29mm}<{\raggedright}
+                   m{23mm}<{\raggedright}@{}}
+\toprule
+{}        & \multicolumn{2}{c}{Unrestricted shuffling} & \multicolumn{2}{c}{Restricted shuffling}\\
+\cmidrule(lr){2-3} \cmidrule(l){4-5}
+Set & \textsc{ee} & \textsc{ise} & \textsc{ee} & \textsc{ise}\\
+\midrule
+\textsc{a} & $36! \approx 3.7 \cdot 10^{41}$ & $2^{36} \approx 6.9 \cdot 10^{10}$ & $4^9 \cdot 9! \approx 9.5 \cdot 10^{10} $ & $2^9=512$\\
+\textsc{b} & $27! \approx 1.1 \cdot 10^{28}$ & $2^{27} \approx 1.3 \cdot 10^{8}$ & $2^9 \cdot 9! \approx 1.9 \cdot 10^{8} $ & $2^9=512$\\
+\textsc{c} & $11! \approx 4.0 \cdot 10^{7}$ & $2^{11} = 2048$ & $11! \approx 4.0 \cdot 10^{7}$ & $2^{11} = 2048$\\
+\textsc{d} & $18! \approx 6.4 \cdot 10^{15}$ & $2^{18} = 262144$ & $2^8 \cdot 3! = 1536$ & $2^5 = 32$\\
+\textsc{e} & $15! \approx 1.3 \cdot 10^{12}$ & $2^{15} = 32768$ & $(3!)^5 = 7776$ & $2^{15} = 32768$\\
+\textsc{f} & $15! \approx 1.3 \cdot 10^{12}$ & $2^{15} = 32768$ & $5! = 120$ & $2^5 = 32$\\
+\textsc{g} & $15! \approx 1.3 \cdot 10^{12}$ & $2^{15} = 32768$ & $(3!)^5 \cdot 5! = 933120$ & $2^5 = 32$\\
+\textsc{h} & $518! \approx 6.5 \cdot 10^{1182}$ & $2^{518} \approx 8.6 \cdot 10^{155}$ & $a \approx 2.9 \cdot 10^{287}$ & $c \approx 6.6 \cdot 10^{63}$\\
+\textsc{i} & $518! \approx 6.5 \cdot 10^{1182}$ & $2^{518} \approx 8.6 \cdot 10^{155}$ & $b \approx 1.3 \cdot 10^{335}$ & $d \approx 6.6 \cdot 10^{63}$\\
+\bottomrule
+\end{tabular}}
+\end{center}
+{\scriptsize
+\begin{enumerate}
+\item[$a \; =$] $[33!] \cdot [2^{50} \cdot 50!] \cdot [2^{3} \cdot 3!] \cdot [(3!)^{18} \cdot 18!] \cdot [2^3 \cdot 3!] \cdot [(4!)^7 \cdot 7!] \cdot [2^{10} \cdot 10!] \cdot [2^{29} \cdot 29!] \cdot [2^3 \cdot 3!] \cdot [(2^2)^7 \cdot 7!] \cdot [2^6 \cdot 6!] \cdot [2^{39} \cdot 39!] \cdot [2] \cdot [(2^2)^3 \cdot 3!]$.
+\item[$b \; =$] $[33!] \cdot [2^{60} \cdot 60!] \cdot [2^3 \cdot 3!] \cdot [(3!)^{47} \cdot 47!] \cdot [2^6 \cdot 6!] \cdot [(4!)^{14} \cdot 14!] \cdot [2^6 \cdot 6!] \cdot [2^{39} \cdot 39!] \cdot [2] \cdot [(2^2)^3 \cdot 3!]$.
+\item[$c \; =$] $2^{33} \cdot 2^{50} \cdot 2^{3} \cdot 2^{18} \cdot 2^{3} \cdot 2^{7} \cdot 2^{10} \cdot 2^{29} \cdot 2^{3} \cdot 2^{7} \cdot 2^{6} \cdot 2^{39} \cdot 2 \cdot 2^{3} = 2^{212}$.
+\item[$d \; =$] $2^{33} \cdot 2^{60} \cdot 2^{3} \cdot 2^{47} \cdot 2^{6} \cdot 2^{14} \cdot 2^{6} \cdot 2^{39} \cdot 2 \cdot 2^{3} = 2^{212}$.
+\end{enumerate}
+Compare products $a$, $b$, $c$ and $d$ with Figures~\ref{fig:treeHCP_full} and \ref{fig:treeHCP_dz2sib}, that depict respectively the \textsc{hcp} structures \textsc{h} and \textsc{i}; the factors are shown starting from the singletons (labelled as \textsc{ns} in the figures) and running counter-clockwise around the central node.\par}
+\label{tab:nperms}
+\end{table}
+
+For each of these nine datasets, an artificial effect (signal) was introduced, in the same way as described in the previous section, but here exclusively using independent Gaussian errors and preserving this independence throughout the simulations while still using multi-level exchangeability blocks for shuffling, as if dependencies among the data existed. Power was then compared with what would be observed if the same data were shuffled without the restrictions imposed by the \textsc{eb}s. For each configuration, 100 repetitions were performed, each simulating 1000 variables (as before, each could represent a voxel or vertex in an image). Up to 512 shufflings were used, either permutations, sign flippings, or permutations with sign flippings. Each repetition used a different set of random observations and a different set of shufflings when the maximum number of possible rearrangements was larger than the number of shufflings performed. The significance level was set as $\alpha$ $=$ $\sfrac{1}{16}$ $=$ $0.0625$. Both the number of permutations and the significance level were chosen so as to allow compatible resolutions of the p-values among runs, allowing a more direct comparison between each case.
+
+Power changes were assessed in relation to what would be observed if the data were shuffled freely, and compared to a measure of the amount of shuffling applied to the data, given the restrictions imposed by the permutation tree. For this purpose, Hamming distance \citep{Hamming1950} was used; this distance counts the number of observations that change their position at each permutation (\textsc{ee}) or that change their sign at each sign flip (\textsc{ise}), or both when permutations are performed together with sign flippings. While the Hamming distance cannot be interpreted as a direct quantification of perturbation on the data, it is appropriate to quantify the effect of the shufflings proper, which do not depend on actual data values.
+
+\subsection{Real data}
+\label{sec:ptree:meth_hcp}
+
+The ongoing Human Connectome Project (\textsc{hcp}) involves the assessment of about four hundred sibships, in many cases with up to four subjects, and with at least one pair of monozygotic (\textsc{mz}) or dizygotic (\textsc{dz}) twins \citep{VanEssen2012, VanEssen2013}. The inclusion of additional siblings to the classic twin design is known to improve the power to detect sources of variation in the observable traits \citep{Posthuma2000, Keller2010}. The objective is to have a genetically informative sample as in a classical twin design, enriched with the inclusion of relatives from the same nuclear family. The coefficient of kinship between \textsc{mz} twins is the same for all such pairs, and so are their expected covariance. Likewise, the covariance is the same for all pairs of \textsc{dz} twins. While kinship can be modelled, such modelling is contingent upon various assumptions that may not always be valid, or that can be hardly checked for all the imaging modalities and exploratory analyses that the \textsc{hcp} entails. Instead, such dependence structure can be represented as a tree that indicates which pieces of data can be shuffled for inference, rendering the permutation methods described this far directly applicable to the \textsc{hcp} data, and without the need to explicitly model the exact degree of dependence present in the data. Depending on whether there is interest in considering or not common effects in dizygotic twins, these can be treated as a category on their own, that cannot be shuffled with ordinary, non-twin siblings, or be allowed to be shuffled with them (Figures~\ref{fig:treeHCP_full} and \ref{fig:treeHCP_dz2sib}).
+
+Virtually all data being collected in the \textsc{hcp} are to be publicly released,\footnote{Detailed information can be found at \href{http://www.humanconnectome.org}{www.humanconnectome.org}.} and at the time of this writing, the available data are the \textsc{hcp-s500}, which includes various imaging and non-imaging measurements for approximately five hundred subjects. Here, measurements of height, weight, and body mass index (\textsc{bmi}) \citep{Barch2013} were investigated for positive and negative associations with the cortical area and thickness as measured at each point of the cortex. These traits are well known to be highly heritable, with most studies reporting $h^2$ estimates that are well above 0.70, so that measurements on subjects from the same family cannot be considered independent. [For the heritabilities of height, weight and \textsc{bmi}, see \citet{Farooqi2005, Visscher2006, Walley2006, Silventoinen2009, Silventoinen2012, Min2013}; for cortical thickness and area, see \citet{Panizzon2009, Winkler2010, Joshi2011, Eyler2011, Eyler2012, Kremen2013, McKay2014}, among others.] To confirm the heritability of these traits specifically in the \textsc{hcp} sample, the variance of these traits was decomposed into genetic and environmental components using the maximum-likelihood methods described in \citet{Almasy1998}, and as implemented in the package Sequential Oligogenic Linkage Analysis Routines -- \textsc{solar} (Department of Genetics, Texas Biomedical Research Institute, San Antonio, \textsc{tx}, \textsc{usa}). The released \textsc{hcp} data do not include an index that could directly categorise subjects according to a common environment or household. Nonetheless, ignoring these possible effects has the potential to overestimate heritabilities. To minimise this possibility, two models were tested: one in which a common environment term ($c^2$) was not included, and another in which a rather conservative surrogate for household effects was included; such proxy was defined by assigning all subjects sharing the same mother to a common environment. The reasoning is twofold: to account for potential maternal effects, which could affect half-siblings sharing the same mother, but not those sharing the same father, and also considering that, most commonly, children of divorced couples tend to stay or dwell with their mothers for most of the time. To ensure normality, the traits were subjected to a rank-based inverse-normal transformation before estimation. The nuisance variables included in the model were age, age-squared, race and ethnicity, the interactions of these with sex, as well as sex itself. The test statistic, for either $h^2$ and $c^2$, is twice the difference between the log-likelihood of a model in which the parameter being tested is constrained to zero and the log-likelihood of a model in which that parameter is allowed to vary; this statistic is distributed as 50:50 mixture of a point mass and a $\chi^2$ distribution with one degree of freedom \citep{Self1987}; here we represent this statistic (known as deviance) as $2D_{\text{LL}}$. For this analysis, 502 subjects with complete data for all these variables were selected (mean age: 29.22, standard deviation: 3.47, range 22--36 years; 296 females; 49 \textsc{mz} pairs, 356 non-\textsc{mz} sibling pairs, 16 half-sibling pairs).
+
+The imaging protocol used for the structural magnetic resonance scans, as well as the steps necessary to construct the surface representation of the cortical mantle, have been described extensively in \citet{Glasser2013} (see also the references therein); FreeSurfer (Martinos Center for Biomedical Imaging, Massachussetts General Hospital, Boston, \textsc{ma}, \textsc{usa}) was used to generate the surfaces and to obtain cortical thickness measurements \citep{Dale1999, Fischl1999, Fischl2000}; image registration was performed using the Multimodal Surface Matching framework (\textsc{msm}) \citep{Robinson2014}. The surface area was processed using the methods described in \citet{Winkler2012}: the area was measured at each face of the white surface, then interpolated using a pycnophylactic method to a common grid (an icosahedron recursively subdivided five times, therefore with 10242 vertices and 20480 faces), and finally converted from facewise to vertexwise. Cortical thickness was also resampled to the same resolution, using barycentric interpolation. Both thickness and area were smoothed on the surface of a homeomorphic sphere with 100~mm radius using a Gaussian kernel with full width at half maximum (\textsc{fwhm}) of 20~mm. For these analyses, 5000 permutations were used, and \textsc{dz} twins were considered as constituting a category on their own, and therefore not allowed to be permuted with non-twin siblings in the same family. Nuisance variables were the same used for the heritability analyses described above, plus global cortical surface area and average thickness. Visualisation of imaging results used Blender (The Blender Foundation, Amsterdam, The Netherlands). Sample statistics for the analysed traits are shown in Table~\ref{tab:samplestats}.
+
+\begin{table}[!tb]
+\caption{Descriptive statistics for the indices of body size and for global cortical surface area and global average thickness on the sample of subjects from the \textsc{hcp}.}
+{\small
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Trait & Mean $\pm$ \textsc{sd} & Range\\
+\midrule
+Height (m) & 1.708 $\pm$ 0.096 & 1.473 -- 1.956\\
+Weight (kg) & 77.712 $\pm$ 17.342 & 44.906 -- 128.820\\
+\textsc{bmi} (kg/m$^2$) & 26.581 $\pm$ 5.252 & 16.788 -- 45.171\\
+Area (cm$^2$) & 1666.80 $\pm$ 169.79 & 1292.14 -- 2112.00\\
+Thickness (mm) & 2.620 $\pm$ 0.087 & 2.239 -- 2.824\\
+\bottomrule   
+\end{tabular}
+\end{center}}
+\label{tab:samplestats}
+\end{table}
+
+\section{Results}
+
+\subsection{Error rates and power}
+
+Despite the differences in the relationship between the observations that constituted datasets \textsc{a} and \textsc{b}, the results were very similar. With errors that were independent and symmetric, i.e., either normally distributed (Gaussian) or kurtotic (Laplacian), the false positive rates (error type \textsc{i}) were controlled at the nominal level ($\alpha = 0.05$) using unrestricted permutations, sign flippings, or permutations with sign flippings, whenever there were no true dependence between observations or elements of the regressor of interest, that is, when either $h_{\boldsymbol{\epsilon}}^{2}$ or $h_{\mathbf{m}}^{2}$ were equal to zero. With both $h_{\boldsymbol{\epsilon}}^{2}$ and $h_{\mathbf{m}}^{2}$ higher than zero, however, the conventional test in which the data are shuffled freely became, as expected, invalid. Using instead the shuffling strategy that we propose, that respects the covariance structure present or assumed to exist in the data, the false positive rates were controlled at $\alpha$, even when the dependence was at high levels. These results are shown in Table \ref{tab:error_rates_gaussian} (Gaussian) and in the Table~\ref{tab:error_rates_laplace} (Laplacian).
+
+With skewed (Weibullian) errors, sign flippings were generally conservative when $h_{\boldsymbol{\epsilon}}^{2}$ or $h_{\mathbf{m}}^{2}$ were equal to zero and the data were shuffled freely. With $h_{\boldsymbol{\epsilon}}^{2}$ and $h_{\mathbf{m}}^{2}$ higher than zero, the test not only reversed its conservativeness, but became invalid if flippings ignored the data structure. If, however, the shufflings were performed respecting the restrictions imposed by the relationships among the datapoints, the test was valid in all cases, with its conservativeness maintained. These results are shown in the Table~\ref{tab:error_rates_weibull}.
+
+\begin{sidewaystable}
+\caption{Proportion of error type \textsc{i} and power (\%) for the simulated sets \textsc{a} and \textsc{b}, with \textbf{Gaussian errors}, at the level $\alpha=0.05$, using different degrees of dependence for the error terms ($h^2_{\boldsymbol{\epsilon}}$) and for the regressor of interest ($h^2_{\mathbf{m}}$), using permutations (\textsc{ee}), sign flippings (\textsc{ise}), or permutations with sign flippings (\textsc{ee}+\textsc{ise}). Confidence intervals (95\%) are shown between parentheses. The values that appear \sout{striked out} are not valid, as they refer to power observed when the corresponding error rates are not controlled (i.e., the lower bound of the confidence interval is above the nominal level $\alpha$ when there is no actual effect).}
+\begin{center}
+{\scriptsize
+\begin{tabular}{@{}
+l@{\hspace{1.6mm}}
+r@{\hspace{2.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{}}
+\toprule
+{} & {} & \multicolumn{6}{c}{Unrestricted shuffling} & \multicolumn{6}{c}{Restricted shuffling} \\
+\cmidrule(lr){3-8}\cmidrule(l){9-14}
+Set & $h^2_{\boldsymbol{\epsilon}}$ & \multicolumn{3}{c}{Without effect (error rate)} & \multicolumn{3}{c}{With effect (power)} & \multicolumn{3}{c}{Without effect (error rate)} & \multicolumn{3}{c}{With effect (power)} \\
+\cmidrule(lr){3-5}\cmidrule(lr){6-8}\cmidrule(lr){9-11}\cmidrule(l){12-14}
+{} & {} & $h^2_{\mathbf{m}} = 0$ & $h^2_{\mathbf{m}} = 0.4$ & $h^2_{\mathbf{m}} = 0.8$ & $h^2_{\mathbf{m}} = 0$ & $h^2_{\mathbf{m}} = 0.4$ & $h^2_{\mathbf{m}} = 0.8$ & $h^2_{\mathbf{m}} = 0$ & $h^2_{\mathbf{m}} = 0.4$ & $h^2_{\mathbf{m}} = 0.8$ & $h^2_{\mathbf{m}} = 0$ & $h^2_{\mathbf{m}} = 0.4$ & $h^2_{\mathbf{m}} = 0.8$ \\
+\midrule
+\multicolumn{14}{l}{\emph{Permutations only:}}\\
+\textsc{a} & 0.0 &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+4.9 \scalebox{.7}[1.0]{(3.3--7.2)} &
+5.1 \scalebox{.7}[1.0]{(3.5--7.3)} &
+49.1 \scalebox{.7}[1.0]{(44.7--53.5)} &
+47.4 \scalebox{.7}[1.0]{(43.1--51.8)} &
+46.5 \scalebox{.7}[1.0]{(42.2--50.9)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+4.9 \scalebox{.7}[1.0]{(3.3--7.2)} &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+47.6 \scalebox{.7}[1.0]{(43.3--52.0)} &
+46.1 \scalebox{.7}[1.0]{(41.7--50.5)} &
+44.3 \scalebox{.7}[1.0]{(40.0--48.7)}\\
+{} & 0.4 &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+6.4 \scalebox{.7}[1.0]{(4.5--8.9)} &
+7.8 \scalebox{.7}[1.0]{(5.7--10.5)} &
+49.8 \scalebox{.7}[1.0]{(45.4--54.2)} &
+49.8 \scalebox{.7}[1.0]{(45.4--54.1)} &
+\sout{48.5 \scalebox{.7}[1.0]{(44.2--52.9)}} &
+5.1 \scalebox{.7}[1.0]{(3.5--7.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+48.5 \scalebox{.7}[1.0]{(44.1--52.9)} &
+44.1 \scalebox{.7}[1.0]{(39.8--48.5)} &
+38.6 \scalebox{.7}[1.0]{(34.4--42.9)}\\
+{} & 0.8 &
+4.9 \scalebox{.7}[1.0]{(3.4--7.2)} &
+7.8 \scalebox{.7}[1.0]{(5.8--10.5)} &
+10.4 \scalebox{.7}[1.0]{(8.0--13.3)} &
+51.5 \scalebox{.7}[1.0]{(47.1--55.8)} &
+\sout{50.5 \scalebox{.7}[1.0]{(46.2--54.9)}} &
+\sout{49.7 \scalebox{.7}[1.0]{(45.3--54.1)}} &
+4.9 \scalebox{.7}[1.0]{(3.3--7.1)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+50.6 \scalebox{.7}[1.0]{(46.2--54.9)} &
+41.9 \scalebox{.7}[1.0]{(37.6--46.2)} &
+34.3 \scalebox{.7}[1.0]{(30.2--38.5)}\\
+\textsc{b} & 0.0 &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+4.9 \scalebox{.7}[1.0]{(3.4--7.2)} &
+48.4 \scalebox{.7}[1.0]{(44.1--52.8)} &
+47.4 \scalebox{.7}[1.0]{(43.0--51.7)} &
+46.5 \scalebox{.7}[1.0]{(42.1--50.8)} &
+4.9 \scalebox{.7}[1.0]{(3.3--7.2)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+46.7 \scalebox{.7}[1.0]{(42.4--51.1)} &
+45.4 \scalebox{.7}[1.0]{(41.1--49.8)} &
+43.8 \scalebox{.7}[1.0]{(39.5--48.2)}\\
+{} & 0.4 &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+6.2 \scalebox{.7}[1.0]{(4.4--8.7)} &
+7.6 \scalebox{.7}[1.0]{(5.6--10.2)} &
+49.6 \scalebox{.7}[1.0]{(45.2--53.9)} &
+49.2 \scalebox{.7}[1.0]{(44.8--53.6)} &
+\sout{48.2 \scalebox{.7}[1.0]{(43.9--52.6)}} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+48.3 \scalebox{.7}[1.0]{(43.9--52.7)} &
+43.5 \scalebox{.7}[1.0]{(39.2--47.8)} &
+38.1 \scalebox{.7}[1.0]{(34.0--42.5)}\\
+{} & 0.8 &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+7.4 \scalebox{.7}[1.0]{(5.4--10.0)} &
+10.0 \scalebox{.7}[1.0]{(7.7--12.9)} &
+50.4 \scalebox{.7}[1.0]{(46.0--54.8)} &
+\sout{50.3 \scalebox{.7}[1.0]{(45.9--54.6)}} &
+\sout{49.2 \scalebox{.7}[1.0]{(44.8--53.6)}} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+4.9 \scalebox{.7}[1.0]{(3.3--7.2)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+50.0 \scalebox{.7}[1.0]{(45.6--54.4)} &
+41.7 \scalebox{.7}[1.0]{(37.5--46.1)} &
+33.7 \scalebox{.7}[1.0]{(29.7--37.9)}\\
+\multicolumn{14}{l}{\emph{Sign flippings only:}}\\
+\textsc{a} & 0.0 &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+4.9 \scalebox{.7}[1.0]{(3.3--7.2)} &
+45.6 \scalebox{.7}[1.0]{(41.3--50.0)} &
+45.6 \scalebox{.7}[1.0]{(41.3--50.0)} &
+45.1 \scalebox{.7}[1.0]{(40.8--49.5)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+5.2 \scalebox{.7}[1.0]{(3.6--7.5)} &
+41.5 \scalebox{.7}[1.0]{(37.2--45.9)} &
+41.7 \scalebox{.7}[1.0]{(37.5--46.1)} &
+40.9 \scalebox{.7}[1.0]{(36.7--45.3)}\\
+{} & 0.4 &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+6.2 \scalebox{.7}[1.0]{(4.4--8.6)} &
+7.7 \scalebox{.7}[1.0]{(5.7--10.4)} &
+47.3 \scalebox{.7}[1.0]{(42.9--51.6)} &
+47.1 \scalebox{.7}[1.0]{(42.7--51.5)} &
+\sout{46.0 \scalebox{.7}[1.0]{(41.7--50.4)}} &
+4.9 \scalebox{.7}[1.0]{(3.3--7.1)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.2 \scalebox{.7}[1.0]{(3.6--7.5)} &
+43.0 \scalebox{.7}[1.0]{(38.8--47.4)} &
+39.2 \scalebox{.7}[1.0]{(35.0--43.6)} &
+34.8 \scalebox{.7}[1.0]{(30.8--39.1)}\\
+{} & 0.8 &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+7.6 \scalebox{.7}[1.0]{(5.6--10.3)} &
+10.7 \scalebox{.7}[1.0]{(8.3--13.7)} &
+48.5 \scalebox{.7}[1.0]{(44.1--52.9)} &
+\sout{48.3 \scalebox{.7}[1.0]{(43.9--52.7)}} &
+\sout{48.6 \scalebox{.7}[1.0]{(44.2--52.9)}} &
+4.9 \scalebox{.7}[1.0]{(3.3--7.1)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.2 \scalebox{.7}[1.0]{(3.6--7.5)} &
+45.2 \scalebox{.7}[1.0]{(40.8--49.5)} &
+37.6 \scalebox{.7}[1.0]{(33.5--41.9)} &
+31.6 \scalebox{.7}[1.0]{(27.7--35.9)}\\
+\textsc{b} & 0.0 &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+4.9 \scalebox{.7}[1.0]{(3.4--7.2)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+45.1 \scalebox{.7}[1.0]{(40.8--49.5)} &
+44.3 \scalebox{.7}[1.0]{(40.0--48.7)} &
+43.8 \scalebox{.7}[1.0]{(39.6--48.2)} &
+4.9 \scalebox{.7}[1.0]{(3.4--7.2)} &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+5.3 \scalebox{.7}[1.0]{(3.6--7.6)} &
+41.5 \scalebox{.7}[1.0]{(37.3--45.9)} &
+40.9 \scalebox{.7}[1.0]{(36.7--45.3)} &
+39.9 \scalebox{.7}[1.0]{(35.7--44.2)}\\
+{} & 0.4 &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+6.3 \scalebox{.7}[1.0]{(4.4--8.7)} &
+7.4 \scalebox{.7}[1.0]{(5.4--10.0)} &
+46.3 \scalebox{.7}[1.0]{(42.0--50.7)} &
+45.3 \scalebox{.7}[1.0]{(41.0--49.7)} &
+\sout{46.2 \scalebox{.7}[1.0]{(41.9--50.6)}} &
+4.9 \scalebox{.7}[1.0]{(3.3--7.2)} &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+42.4 \scalebox{.7}[1.0]{(38.2--46.8)} &
+38.3 \scalebox{.7}[1.0]{(34.2--42.7)} &
+35.2 \scalebox{.7}[1.0]{(31.2--39.5)}\\
+{} & 0.8 &
+5.1 \scalebox{.7}[1.0]{(3.5--7.3)} &
+7.6 \scalebox{.7}[1.0]{(5.6--10.3)} &
+10.1 \scalebox{.7}[1.0]{(7.8--13.1)} &
+47.5 \scalebox{.7}[1.0]{(43.2--51.9)} &
+\sout{47.2 \scalebox{.7}[1.0]{(42.8--51.5)}} &
+\sout{47.1 \scalebox{.7}[1.0]{(42.8--51.5)}} &
+4.8 \scalebox{.7}[1.0]{(3.2--7.0)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+44.2 \scalebox{.7}[1.0]{(39.9--48.6)} &
+37.3 \scalebox{.7}[1.0]{(33.2--41.6)} &
+30.8 \scalebox{.7}[1.0]{(26.9--34.9)}\\
+\multicolumn{14}{l}{\emph{Permutations + sign flippings:}}\\
+\textsc{a} & 0.0 &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+48.6 \scalebox{.7}[1.0]{(44.3--53.0)} &
+48.6 \scalebox{.7}[1.0]{(44.3--53.0)} &
+46.8 \scalebox{.7}[1.0]{(42.5--51.2)} &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+5.3 \scalebox{.7}[1.0]{(3.6--7.6)} &
+48.4 \scalebox{.7}[1.0]{(44.0--52.7)} &
+48.8 \scalebox{.7}[1.0]{(44.4--53.1)} &
+46.9 \scalebox{.7}[1.0]{(42.6--51.3)}\\
+{} & 0.4 &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+6.4 \scalebox{.7}[1.0]{(4.6--8.9)} &
+7.7 \scalebox{.7}[1.0]{(5.7--10.4)} &
+49.7 \scalebox{.7}[1.0]{(45.3--54.0)} &
+48.6 \scalebox{.7}[1.0]{(44.2--52.9)} &
+\sout{48.0 \scalebox{.7}[1.0]{(43.6--52.4)}} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+5.4 \scalebox{.7}[1.0]{(3.7--7.7)} &
+49.7 \scalebox{.7}[1.0]{(45.4--54.1)} &
+44.5 \scalebox{.7}[1.0]{(40.2--48.9)} &
+40.2 \scalebox{.7}[1.0]{(36.0--44.6)}\\
+{} & 0.8 &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+7.7 \scalebox{.7}[1.0]{(5.7--10.4)} &
+10.5 \scalebox{.7}[1.0]{(8.1--13.5)} &
+51.3 \scalebox{.7}[1.0]{(46.9--55.6)} &
+\sout{50.3 \scalebox{.7}[1.0]{(45.9--54.6)}} &
+\sout{50.2 \scalebox{.7}[1.0]{(45.8--54.5)}} &
+4.9 \scalebox{.7}[1.0]{(3.3--7.2)} &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+5.4 \scalebox{.7}[1.0]{(3.7--7.7)} &
+52.1 \scalebox{.7}[1.0]{(47.7--56.5)} &
+43.2 \scalebox{.7}[1.0]{(38.9--47.6)} &
+36.3 \scalebox{.7}[1.0]{(32.2--40.6)}\\
+\textsc{b} & 0.0 &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+5.1 \scalebox{.7}[1.0]{(3.5--7.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+48.8 \scalebox{.7}[1.0]{(44.4--53.1)} &
+48.2 \scalebox{.7}[1.0]{(43.8--52.5)} &
+47.1 \scalebox{.7}[1.0]{(42.8--51.5)} &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+5.2 \scalebox{.7}[1.0]{(3.6--7.5)} &
+5.3 \scalebox{.7}[1.0]{(3.7--7.7)} &
+48.3 \scalebox{.7}[1.0]{(44.0--52.7)} &
+48.1 \scalebox{.7}[1.0]{(43.7--52.4)} &
+47.0 \scalebox{.7}[1.0]{(42.7--51.4)}\\
+{} & 0.4 &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+6.2 \scalebox{.7}[1.0]{(4.4--8.7)} &
+7.5 \scalebox{.7}[1.0]{(5.5--10.2)} &
+49.2 \scalebox{.7}[1.0]{(44.8--53.5)} &
+49.5 \scalebox{.7}[1.0]{(45.1--53.8)} &
+\sout{48.2 \scalebox{.7}[1.0]{(43.9--52.6)}} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.2 \scalebox{.7}[1.0]{(3.5--7.5)} &
+5.3 \scalebox{.7}[1.0]{(3.7--7.7)} &
+49.0 \scalebox{.7}[1.0]{(44.6--53.4)} &
+45.8 \scalebox{.7}[1.0]{(41.5--50.2)} &
+40.6 \scalebox{.7}[1.0]{(36.4--44.9)}\\
+{} & 0.8 &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+7.6 \scalebox{.7}[1.0]{(5.6--10.3)} &
+10.2 \scalebox{.7}[1.0]{(7.8--13.2)} &
+50.3 \scalebox{.7}[1.0]{(45.9--54.7)} &
+\sout{50.3 \scalebox{.7}[1.0]{(46.0--54.7)}} &
+\sout{50.0 \scalebox{.7}[1.0]{(45.6--54.4)}} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+5.2 \scalebox{.7}[1.0]{(3.5--7.5)} &
+5.2 \scalebox{.7}[1.0]{(3.6--7.5)} &
+51.2 \scalebox{.7}[1.0]{(46.8--55.5)} &
+43.6 \scalebox{.7}[1.0]{(39.3--47.9)} &
+36.6 \scalebox{.7}[1.0]{(32.5--40.9)}\\
+\bottomrule
+\end{tabular}}
+\end{center}
+\label{tab:error_rates_gaussian}
+\end{sidewaystable}
+
+\begin{sidewaystable}
+\caption{Proportion of error type \textsc{i} and power (\%) for the simulated sets \textsc{a} and \textsc{b}, with \textbf{Laplacian (kurtotic) errors}, at the level $\alpha=0.05$, using different degrees of dependence for the error terms ($h^2_{\boldsymbol{\epsilon}}$) and for the regressor of interest ($h^2_{\mathbf{m}}$), using permutations (\textsc{ee}), sign flippings (\textsc{ise}), or permutations with sign flippings (\textsc{ee}+\textsc{ise}). Confidence intervals (95\%) are shown between parentheses. The values that appear \sout{striked out} are not valid, as they refer to power observed when the corresponding error rates are not controlled (i.e., the lower bound of the confidence interval is above the nominal level $\alpha$ when there is no actual effect).}
+\begin{center}
+{\scriptsize
+\begin{tabular}{@{}
+l@{\hspace{1.6mm}}
+r@{\hspace{2.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{}}
+\toprule
+{} & {} & \multicolumn{6}{c}{Unrestricted shuffling} & \multicolumn{6}{c}{Restricted shuffling} \\
+\cmidrule(lr){3-8}\cmidrule(l){9-14}
+Set & $h^2_{\boldsymbol{\epsilon}}$ & \multicolumn{3}{c}{Without effect (error rate)} & \multicolumn{3}{c}{With effect (power)} & \multicolumn{3}{c}{Without effect (error rate)} & \multicolumn{3}{c}{With effect (power)} \\
+\cmidrule(lr){3-5}\cmidrule(lr){6-8}\cmidrule(lr){9-11}\cmidrule(l){12-14}
+{} & {} & $h^2_{\mathbf{m}} = 0$ & $h^2_{\mathbf{m}} = 0.4$ & $h^2_{\mathbf{m}} = 0.8$ & $h^2_{\mathbf{m}} = 0$ & $h^2_{\mathbf{m}} = 0.4$ & $h^2_{\mathbf{m}} = 0.8$ & $h^2_{\mathbf{m}} = 0$ & $h^2_{\mathbf{m}} = 0.4$ & $h^2_{\mathbf{m}} = 0.8$ & $h^2_{\mathbf{m}} = 0$ & $h^2_{\mathbf{m}} = 0.4$ & $h^2_{\mathbf{m}} = 0.8$ \\
+\midrule
+\multicolumn{14}{l}{\emph{Permutations only:}}\\
+\textsc{a} & 0.0 &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+50.5 \scalebox{.7}[1.0]{(46.1--54.8)} &
+50.0 \scalebox{.7}[1.0]{(45.6--54.3)} &
+49.0 \scalebox{.7}[1.0]{(44.6--53.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+49.3 \scalebox{.7}[1.0]{(44.9--53.7)} &
+48.6 \scalebox{.7}[1.0]{(44.2--53.0)} &
+46.8 \scalebox{.7}[1.0]{(42.4--51.1)}\\
+{} & 0.4 &
+4.9 \scalebox{.7}[1.0]{(3.4--7.2)} &
+6.3 \scalebox{.7}[1.0]{(4.5--8.8)} &
+7.7 \scalebox{.7}[1.0]{(5.7--10.4)} &
+51.7 \scalebox{.7}[1.0]{(47.3--56.1)} &
+50.7 \scalebox{.7}[1.0]{(46.4--55.1)} &
+\sout{49.8 \scalebox{.7}[1.0]{(45.4--54.1)}} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+4.9 \scalebox{.7}[1.0]{(3.4--7.2)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+50.7 \scalebox{.7}[1.0]{(46.3--55.1)} &
+45.3 \scalebox{.7}[1.0]{(40.9--49.6)} &
+39.9 \scalebox{.7}[1.0]{(35.7--44.3)}\\
+{} & 0.8 &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+7.6 \scalebox{.7}[1.0]{(5.6--10.3)} &
+10.3 \scalebox{.7}[1.0]{(8.0--13.3)} &
+52.9 \scalebox{.7}[1.0]{(48.5--57.3)} &
+\sout{51.9 \scalebox{.7}[1.0]{(47.5--56.2)}} &
+\sout{51.3 \scalebox{.7}[1.0]{(46.9--55.7)}} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+4.9 \scalebox{.7}[1.0]{(3.4--7.2)} &
+52.8 \scalebox{.7}[1.0]{(48.5--57.2)} &
+43.8 \scalebox{.7}[1.0]{(39.5--48.2)} &
+36.3 \scalebox{.7}[1.0]{(32.2--40.6)}\\
+\textsc{b} & 0.0 &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+50.4 \scalebox{.7}[1.0]{(46.0--54.7)} &
+49.4 \scalebox{.7}[1.0]{(45.1--53.8)} &
+48.1 \scalebox{.7}[1.0]{(43.7--52.4)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+48.5 \scalebox{.7}[1.0]{(44.2--52.9)} &
+47.5 \scalebox{.7}[1.0]{(43.2--51.9)} &
+45.3 \scalebox{.7}[1.0]{(41.0--49.7)}\\
+{} & 0.4 &
+4.9 \scalebox{.7}[1.0]{(3.3--7.2)} &
+6.2 \scalebox{.7}[1.0]{(4.4--8.7)} &
+7.5 \scalebox{.7}[1.0]{(5.5--10.1)} &
+51.9 \scalebox{.7}[1.0]{(47.6--56.3)} &
+50.8 \scalebox{.7}[1.0]{(46.4--55.2)} &
+\sout{50.0 \scalebox{.7}[1.0]{(45.6--54.3)}} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+50.4 \scalebox{.7}[1.0]{(46.0--54.7)} &
+45.4 \scalebox{.7}[1.0]{(41.1--49.7)} &
+40.0 \scalebox{.7}[1.0]{(35.8--44.3)}\\
+{} & 0.8 &
+4.9 \scalebox{.7}[1.0]{(3.3--7.1)} &
+7.3 \scalebox{.7}[1.0]{(5.4--10.0)} &
+9.8 \scalebox{.7}[1.0]{(7.5--12.8)} &
+53.9 \scalebox{.7}[1.0]{(49.5--58.2)} &
+\sout{52.4 \scalebox{.7}[1.0]{(48.0--56.7)}} &
+\sout{51.8 \scalebox{.7}[1.0]{(47.4--56.1)}} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+4.9 \scalebox{.7}[1.0]{(3.3--7.1)} &
+53.1 \scalebox{.7}[1.0]{(48.8--57.5)} &
+44.6 \scalebox{.7}[1.0]{(40.3--48.9)} &
+36.9 \scalebox{.7}[1.0]{(32.8--41.2)}\\
+\multicolumn{14}{l}{\emph{Sign flippings only:}}\\
+\textsc{a} & 0.0 &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+49.7 \scalebox{.7}[1.0]{(45.4--54.1)} &
+49.0 \scalebox{.7}[1.0]{(44.6--53.4)} &
+47.8 \scalebox{.7}[1.0]{(43.5--52.2)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+5.2 \scalebox{.7}[1.0]{(3.6--7.5)} &
+45.8 \scalebox{.7}[1.0]{(41.5--50.2)} &
+45.2 \scalebox{.7}[1.0]{(40.8--49.5)} &
+43.4 \scalebox{.7}[1.0]{(39.1--47.8)}\\
+{} & 0.4 &
+4.9 \scalebox{.7}[1.0]{(3.4--7.2)} &
+6.4 \scalebox{.7}[1.0]{(4.6--8.9)} &
+7.8 \scalebox{.7}[1.0]{(5.8--10.5)} &
+50.6 \scalebox{.7}[1.0]{(46.2--55.0)} &
+50.5 \scalebox{.7}[1.0]{(46.2--54.9)} &
+\sout{49.2 \scalebox{.7}[1.0]{(44.9--53.6)}} &
+4.9 \scalebox{.7}[1.0]{(3.3--7.2)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+46.7 \scalebox{.7}[1.0]{(42.4--51.1)} &
+43.1 \scalebox{.7}[1.0]{(38.8--47.4)} &
+38.0 \scalebox{.7}[1.0]{(33.9--42.4)}\\
+{} & 0.8 &
+4.9 \scalebox{.7}[1.0]{(3.3--7.2)} &
+7.6 \scalebox{.7}[1.0]{(5.6--10.3)} &
+10.5 \scalebox{.7}[1.0]{(8.1--13.5)} &
+52.1 \scalebox{.7}[1.0]{(47.7--56.4)} &
+\sout{51.4 \scalebox{.7}[1.0]{(47.1--55.8)}} &
+\sout{50.6 \scalebox{.7}[1.0]{(46.2--55.0)}} &
+4.8 \scalebox{.7}[1.0]{(3.3--7.1)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+49.3 \scalebox{.7}[1.0]{(44.9--53.7)} &
+42.1 \scalebox{.7}[1.0]{(37.8--46.5)} &
+34.9 \scalebox{.7}[1.0]{(30.9--39.2)}\\
+\textsc{b} & 0.0 &
+4.9 \scalebox{.7}[1.0]{(3.3--7.1)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+4.9 \scalebox{.7}[1.0]{(3.3--7.2)} &
+48.9 \scalebox{.7}[1.0]{(44.5--53.2)} &
+48.8 \scalebox{.7}[1.0]{(44.4--53.1)} &
+47.9 \scalebox{.7}[1.0]{(43.6--52.3)} &
+4.9 \scalebox{.7}[1.0]{(3.3--7.2)} &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+5.2 \scalebox{.7}[1.0]{(3.6--7.5)} &
+45.2 \scalebox{.7}[1.0]{(40.9--49.6)} &
+45.2 \scalebox{.7}[1.0]{(40.9--49.6)} &
+43.8 \scalebox{.7}[1.0]{(39.5--48.1)}\\
+{} & 0.4 &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+6.2 \scalebox{.7}[1.0]{(4.4--8.7)} &
+7.6 \scalebox{.7}[1.0]{(5.6--10.3)} &
+49.4 \scalebox{.7}[1.0]{(45.1--53.8)} &
+49.9 \scalebox{.7}[1.0]{(45.5--54.3)} &
+\sout{49.8 \scalebox{.7}[1.0]{(45.4--54.1)}} &
+4.9 \scalebox{.7}[1.0]{(3.3--7.1)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.2 \scalebox{.7}[1.0]{(3.5--7.5)} &
+45.8 \scalebox{.7}[1.0]{(41.5--50.2)} &
+43.4 \scalebox{.7}[1.0]{(39.2--47.8)} &
+38.7 \scalebox{.7}[1.0]{(34.6--43.1)}\\
+{} & 0.8 &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+7.2 \scalebox{.7}[1.0]{(5.2--9.8)} &
+10.0 \scalebox{.7}[1.0]{(7.7--13.0)} &
+50.8 \scalebox{.7}[1.0]{(46.4--55.2)} &
+\sout{51.5 \scalebox{.7}[1.0]{(47.1--55.8)}} &
+\sout{50.6 \scalebox{.7}[1.0]{(46.3--55.0)}} &
+4.7 \scalebox{.7}[1.0]{(3.2--7.0)} &
+4.9 \scalebox{.7}[1.0]{(3.3--7.1)} &
+4.9 \scalebox{.7}[1.0]{(3.4--7.2)} &
+48.1 \scalebox{.7}[1.0]{(43.7--52.5)} &
+42.2 \scalebox{.7}[1.0]{(38.0--46.6)} &
+35.4 \scalebox{.7}[1.0]{(31.4--39.7)}\\
+\multicolumn{14}{l}{\emph{Permutations + sign flippings:}}\\
+\textsc{a} & 0.0 &
+4.9 \scalebox{.7}[1.0]{(3.4--7.2)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+5.1 \scalebox{.7}[1.0]{(3.5--7.3)} &
+50.6 \scalebox{.7}[1.0]{(46.2--55.0)} &
+49.3 \scalebox{.7}[1.0]{(44.9--53.7)} &
+48.5 \scalebox{.7}[1.0]{(44.2--52.9)} &
+4.9 \scalebox{.7}[1.0]{(3.3--7.2)} &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+5.3 \scalebox{.7}[1.0]{(3.7--7.7)} &
+50.3 \scalebox{.7}[1.0]{(46.0--54.7)} &
+49.4 \scalebox{.7}[1.0]{(45.0--53.8)} &
+48.6 \scalebox{.7}[1.0]{(44.2--53.0)}\\
+{} & 0.4 &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+6.3 \scalebox{.7}[1.0]{(4.5--8.8)} &
+7.6 \scalebox{.7}[1.0]{(5.6--10.3)} &
+51.6 \scalebox{.7}[1.0]{(47.2--55.9)} &
+50.3 \scalebox{.7}[1.0]{(46.0--54.7)} &
+\sout{49.5 \scalebox{.7}[1.0]{(45.2--53.9)}} &
+4.9 \scalebox{.7}[1.0]{(3.4--7.2)} &
+5.2 \scalebox{.7}[1.0]{(3.6--7.5)} &
+5.2 \scalebox{.7}[1.0]{(3.6--7.6)} &
+51.5 \scalebox{.7}[1.0]{(47.1--55.8)} &
+46.5 \scalebox{.7}[1.0]{(42.1--50.8)} &
+41.9 \scalebox{.7}[1.0]{(37.6--46.2)}\\
+{} & 0.8 &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+7.9 \scalebox{.7}[1.0]{(5.8--10.6)} &
+10.2 \scalebox{.7}[1.0]{(7.9--13.2)} &
+52.8 \scalebox{.7}[1.0]{(48.4--57.1)} &
+\sout{52.9 \scalebox{.7}[1.0]{(48.5--57.2)}} &
+\sout{51.9 \scalebox{.7}[1.0]{(47.5--56.2)}} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.2 \scalebox{.7}[1.0]{(3.5--7.5)} &
+5.3 \scalebox{.7}[1.0]{(3.7--7.6)} &
+53.2 \scalebox{.7}[1.0]{(48.8--57.5)} &
+45.7 \scalebox{.7}[1.0]{(41.4--50.1)} &
+38.6 \scalebox{.7}[1.0]{(34.5--43.0)}\\
+\textsc{b} & 0.0 &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+4.9 \scalebox{.7}[1.0]{(3.4--7.2)} &
+51.1 \scalebox{.7}[1.0]{(46.7--55.4)} &
+50.3 \scalebox{.7}[1.0]{(46.0--54.7)} &
+48.4 \scalebox{.7}[1.0]{(44.1--52.8)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.2 \scalebox{.7}[1.0]{(3.5--7.5)} &
+5.3 \scalebox{.7}[1.0]{(3.6--7.6)} &
+50.8 \scalebox{.7}[1.0]{(46.4--55.2)} &
+50.4 \scalebox{.7}[1.0]{(46.1--54.8)} &
+48.4 \scalebox{.7}[1.0]{(44.0--52.7)}\\
+{} & 0.4 &
+4.9 \scalebox{.7}[1.0]{(3.3--7.2)} &
+6.2 \scalebox{.7}[1.0]{(4.4--8.6)} &
+7.5 \scalebox{.7}[1.0]{(5.5--10.2)} &
+51.7 \scalebox{.7}[1.0]{(47.3--56.0)} &
+51.5 \scalebox{.7}[1.0]{(47.1--55.8)} &
+\sout{49.9 \scalebox{.7}[1.0]{(45.5--54.3)}} &
+4.9 \scalebox{.7}[1.0]{(3.3--7.1)} &
+5.2 \scalebox{.7}[1.0]{(3.6--7.5)} &
+5.3 \scalebox{.7}[1.0]{(3.7--7.6)} &
+51.5 \scalebox{.7}[1.0]{(47.1--55.9)} &
+48.0 \scalebox{.7}[1.0]{(43.7--52.4)} &
+42.4 \scalebox{.7}[1.0]{(38.2--46.8)}\\
+{} & 0.8 &
+4.9 \scalebox{.7}[1.0]{(3.3--7.1)} &
+7.4 \scalebox{.7}[1.0]{(5.4--10.1)} &
+10.1 \scalebox{.7}[1.0]{(7.8--13.1)} &
+53.5 \scalebox{.7}[1.0]{(49.2--57.9)} &
+\sout{52.1 \scalebox{.7}[1.0]{(47.7--56.4)}} &
+\sout{51.4 \scalebox{.7}[1.0]{(47.1--55.8)}} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.2 \scalebox{.7}[1.0]{(3.5--7.5)} &
+5.4 \scalebox{.7}[1.0]{(3.7--7.7)} &
+53.8 \scalebox{.7}[1.0]{(49.5--58.2)} &
+45.9 \scalebox{.7}[1.0]{(41.6--50.3)} &
+38.6 \scalebox{.7}[1.0]{(34.5--43.0)}\\
+\bottomrule
+\end{tabular}}
+\end{center}
+\label{tab:error_rates_laplace}
+\end{sidewaystable}
+
+\begin{sidewaystable}
+\caption{Proportion of error type \textsc{i} and power (\%) for the simulated sets \textsc{a} and \textsc{b}, with \textbf{Weibullian (skewed) errors}, at the level $\alpha=0.05$, using different degrees of dependence for the error terms ($h^2_{\boldsymbol{\epsilon}}$) and for the regressor of interest ($h^2_{\mathbf{m}}$), using permutations (\textsc{ee}), sign flippings (\textsc{ise}), or permutations with sign flippings (\textsc{ee}+\textsc{ise}). Confidence intervals (95\%) are shown between parentheses. The values that appear \sout{striked out} are not valid, as they refer to power observed when the corresponding error rates are not controlled (i.e., the lower bound of the confidence interval is above the nominal level $\alpha$ when there is no actual effect).}
+\begin{center}
+{\scriptsize
+\begin{tabular}{@{}
+l@{\hspace{1.6mm}}
+r@{\hspace{2.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{\hspace{1.6mm}}
+c@{}}
+\toprule
+{} & {} & \multicolumn{6}{c}{Unrestricted shuffling} & \multicolumn{6}{c}{Restricted shuffling} \\
+\cmidrule(lr){3-8}\cmidrule(l){9-14}
+Set & $h^2_{\boldsymbol{\epsilon}}$ & \multicolumn{3}{c}{Without effect (error rate)} & \multicolumn{3}{c}{With effect (power)} & \multicolumn{3}{c}{Without effect (error rate)} & \multicolumn{3}{c}{With effect (power)} \\
+\cmidrule(lr){3-5}\cmidrule(lr){6-8}\cmidrule(lr){9-11}\cmidrule(l){12-14}
+{} & {} & $h^2_{\mathbf{m}} = 0$ & $h^2_{\mathbf{m}} = 0.4$ & $h^2_{\mathbf{m}} = 0.8$ & $h^2_{\mathbf{m}} = 0$ & $h^2_{\mathbf{m}} = 0.4$ & $h^2_{\mathbf{m}} = 0.8$ & $h^2_{\mathbf{m}} = 0$ & $h^2_{\mathbf{m}} = 0.4$ & $h^2_{\mathbf{m}} = 0.8$ & $h^2_{\mathbf{m}} = 0$ & $h^2_{\mathbf{m}} = 0.4$ & $h^2_{\mathbf{m}} = 0.8$ \\
+\midrule
+\multicolumn{14}{l}{\emph{Permutations only:}}\\
+\textsc{a} & 0.0 &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+4.9 \scalebox{.7}[1.0]{(3.4--7.2)} &
+79.1 \scalebox{.7}[1.0]{(75.3--82.4)} &
+78.3 \scalebox{.7}[1.0]{(74.5--81.7)} &
+78.1 \scalebox{.7}[1.0]{(74.2--81.5)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+78.5 \scalebox{.7}[1.0]{(74.7--81.9)} &
+77.5 \scalebox{.7}[1.0]{(73.7--81.0)} &
+77.1 \scalebox{.7}[1.0]{(73.3--80.6)}\\
+{} & 0.4 &
+5.1 \scalebox{.7}[1.0]{(3.5--7.3)} &
+6.3 \scalebox{.7}[1.0]{(4.5--8.8)} &
+7.7 \scalebox{.7}[1.0]{(5.7--10.4)} &
+79.4 \scalebox{.7}[1.0]{(75.6--82.7)} &
+78.6 \scalebox{.7}[1.0]{(74.8--82.0)} &
+\sout{77.7 \scalebox{.7}[1.0]{(73.9--81.1)}} &
+4.9 \scalebox{.7}[1.0]{(3.4--7.2)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+78.9 \scalebox{.7}[1.0]{(75.1--82.3)} &
+76.3 \scalebox{.7}[1.0]{(72.4--79.8)} &
+73.3 \scalebox{.7}[1.0]{(69.3--77.0)}\\
+{} & 0.8 &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+7.2 \scalebox{.7}[1.0]{(5.2--9.8)} &
+9.6 \scalebox{.7}[1.0]{(7.3--12.5)} &
+80.4 \scalebox{.7}[1.0]{(76.7--83.7)} &
+\sout{79.8 \scalebox{.7}[1.0]{(76.0--83.1)}} &
+\sout{78.1 \scalebox{.7}[1.0]{(74.3--81.5)}} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+80.3 \scalebox{.7}[1.0]{(76.6--83.5)} &
+76.7 \scalebox{.7}[1.0]{(72.8--80.2)} &
+71.9 \scalebox{.7}[1.0]{(67.8--75.6)}\\
+\textsc{b} & 0.0 &
+4.9 \scalebox{.7}[1.0]{(3.3--7.2)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+4.9 \scalebox{.7}[1.0]{(3.3--7.1)} &
+80.6 \scalebox{.7}[1.0]{(76.9--83.8)} &
+80.1 \scalebox{.7}[1.0]{(76.3--83.3)} &
+79.3 \scalebox{.7}[1.0]{(75.5--82.6)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+4.9 \scalebox{.7}[1.0]{(3.4--7.2)} &
+4.9 \scalebox{.7}[1.0]{(3.4--7.2)} &
+80.1 \scalebox{.7}[1.0]{(76.4--83.4)} &
+79.3 \scalebox{.7}[1.0]{(75.5--82.6)} &
+78.3 \scalebox{.7}[1.0]{(74.5--81.7)}\\
+{} & 0.4 &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+6.2 \scalebox{.7}[1.0]{(4.4--8.7)} &
+7.5 \scalebox{.7}[1.0]{(5.5--10.2)} &
+81.2 \scalebox{.7}[1.0]{(77.5--84.4)} &
+80.7 \scalebox{.7}[1.0]{(77.0--83.9)} &
+\sout{79.5 \scalebox{.7}[1.0]{(75.7--82.8)}} &
+4.9 \scalebox{.7}[1.0]{(3.3--7.2)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+80.6 \scalebox{.7}[1.0]{(76.9--83.8)} &
+78.7 \scalebox{.7}[1.0]{(74.9--82.1)} &
+75.5 \scalebox{.7}[1.0]{(71.6--79.1)}\\
+{} & 0.8 &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+7.2 \scalebox{.7}[1.0]{(5.2--9.8)} &
+9.1 \scalebox{.7}[1.0]{(6.9--12.0)} &
+81.9 \scalebox{.7}[1.0]{(78.3--85.1)} &
+\sout{81.4 \scalebox{.7}[1.0]{(77.7--84.5)}} &
+\sout{80.6 \scalebox{.7}[1.0]{(76.9--83.8)}} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+4.9 \scalebox{.7}[1.0]{(3.4--7.2)} &
+81.7 \scalebox{.7}[1.0]{(78.1--84.8)} &
+78.7 \scalebox{.7}[1.0]{(74.9--82.1)} &
+75.2 \scalebox{.7}[1.0]{(71.2--78.8)}\\
+\multicolumn{14}{l}{\emph{Sign flippings only:}}\\
+\textsc{a} & 0.0 &
+3.5 \scalebox{.7}[1.0]{(2.2--5.6)} &
+3.6 \scalebox{.7}[1.0]{(2.3--5.6)} &
+3.6 \scalebox{.7}[1.0]{(2.3--5.6)} &
+82.9 \scalebox{.7}[1.0]{(79.3--85.9)} &
+82.7 \scalebox{.7}[1.0]{(79.2--85.8)} &
+82.2 \scalebox{.7}[1.0]{(78.6--85.3)} &
+3.8 \scalebox{.7}[1.0]{(2.5--5.9)} &
+4.0 \scalebox{.7}[1.0]{(2.6--6.0)} &
+4.0 \scalebox{.7}[1.0]{(2.6--6.1)} &
+81.0 \scalebox{.7}[1.0]{(77.4--84.2)} &
+80.6 \scalebox{.7}[1.0]{(76.9--83.8)} &
+79.2 \scalebox{.7}[1.0]{(75.4--82.5)}\\
+{} & 0.4 &
+4.2 \scalebox{.7}[1.0]{(2.7--6.3)} &
+5.9 \scalebox{.7}[1.0]{(4.2--8.3)} &
+7.8 \scalebox{.7}[1.0]{(5.8--10.5)} &
+82.3 \scalebox{.7}[1.0]{(78.7--85.4)} &
+82.1 \scalebox{.7}[1.0]{(78.5--85.2)} &
+\sout{81.3 \scalebox{.7}[1.0]{(77.7--84.5)}} &
+3.7 \scalebox{.7}[1.0]{(2.3--5.7)} &
+3.7 \scalebox{.7}[1.0]{(2.4--5.8)} &
+3.8 \scalebox{.7}[1.0]{(2.4--5.8)} &
+81.0 \scalebox{.7}[1.0]{(77.3--84.2)} &
+78.9 \scalebox{.7}[1.0]{(75.1--82.2)} &
+75.7 \scalebox{.7}[1.0]{(71.7--79.2)}\\
+{} & 0.8 &
+4.5 \scalebox{.7}[1.0]{(3.0--6.7)} &
+7.1 \scalebox{.7}[1.0]{(5.1--9.6)} &
+9.6 \scalebox{.7}[1.0]{(7.3--12.5)} &
+82.0 \scalebox{.7}[1.0]{(78.4--85.2)} &
+\sout{81.7 \scalebox{.7}[1.0]{(78.0--84.8)}} &
+\sout{81.2 \scalebox{.7}[1.0]{(77.6--84.4)}} &
+3.6 \scalebox{.7}[1.0]{(2.3--5.6)} &
+3.7 \scalebox{.7}[1.0]{(2.4--5.7)} &
+3.7 \scalebox{.7}[1.0]{(2.3--5.7)} &
+81.4 \scalebox{.7}[1.0]{(77.7--84.5)} &
+78.4 \scalebox{.7}[1.0]{(74.6--81.8)} &
+74.5 \scalebox{.7}[1.0]{(70.5--78.1)}\\
+\textsc{b} & 0.0 &
+3.2 \scalebox{.7}[1.0]{(2.0--5.1)} &
+3.1 \scalebox{.7}[1.0]{(1.9--5.1)} &
+3.2 \scalebox{.7}[1.0]{(1.9--5.1)} &
+83.7 \scalebox{.7}[1.0]{(80.2--86.7)} &
+83.3 \scalebox{.7}[1.0]{(79.8--86.3)} &
+83.0 \scalebox{.7}[1.0]{(79.5--86.1)} &
+3.5 \scalebox{.7}[1.0]{(2.2--5.5)} &
+3.7 \scalebox{.7}[1.0]{(2.3--5.7)} &
+3.6 \scalebox{.7}[1.0]{(2.3--5.6)} &
+82.1 \scalebox{.7}[1.0]{(78.5--85.3)} &
+81.5 \scalebox{.7}[1.0]{(77.8--84.6)} &
+80.2 \scalebox{.7}[1.0]{(76.5--83.4)}\\
+{} & 0.4 &
+3.7 \scalebox{.7}[1.0]{(2.4--5.8)} &
+5.3 \scalebox{.7}[1.0]{(3.7--7.6)} &
+6.6 \scalebox{.7}[1.0]{(4.7--9.1)} &
+83.2 \scalebox{.7}[1.0]{(79.7--86.2)} &
+82.7 \scalebox{.7}[1.0]{(79.2--85.8)} &
+82.2 \scalebox{.7}[1.0]{(78.6--85.3)} &
+3.4 \scalebox{.7}[1.0]{(2.2--5.4)} &
+3.5 \scalebox{.7}[1.0]{(2.2--5.4)} &
+3.5 \scalebox{.7}[1.0]{(2.2--5.4)} &
+82.0 \scalebox{.7}[1.0]{(78.4--85.2)} &
+80.0 \scalebox{.7}[1.0]{(76.3--83.3)} &
+77.0 \scalebox{.7}[1.0]{(73.1--80.5)}\\
+{} & 0.8 &
+4.0 \scalebox{.7}[1.0]{(2.6--6.1)} &
+5.9 \scalebox{.7}[1.0]{(4.2--8.4)} &
+8.3 \scalebox{.7}[1.0]{(6.2--11.0)} &
+83.3 \scalebox{.7}[1.0]{(79.8--86.3)} &
+83.0 \scalebox{.7}[1.0]{(79.5--86.0)} &
+\sout{82.4 \scalebox{.7}[1.0]{(78.9--85.5)}} &
+3.3 \scalebox{.7}[1.0]{(2.1--5.3)} &
+3.2 \scalebox{.7}[1.0]{(2.0--5.1)} &
+3.3 \scalebox{.7}[1.0]{(2.1--5.3)} &
+82.7 \scalebox{.7}[1.0]{(79.2--85.8)} &
+79.9 \scalebox{.7}[1.0]{(76.2--83.2)} &
+76.1 \scalebox{.7}[1.0]{(72.1--79.6)}\\
+\multicolumn{14}{l}{\emph{Permutations + sign flippings:}}\\
+\textsc{a} & 0.0 &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+79.3 \scalebox{.7}[1.0]{(75.5--82.6)} &
+78.5 \scalebox{.7}[1.0]{(74.7--81.9)} &
+78.0 \scalebox{.7}[1.0]{(74.2--81.4)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.2 \scalebox{.7}[1.0]{(3.6--7.5)} &
+5.3 \scalebox{.7}[1.0]{(3.7--7.6)} &
+79.3 \scalebox{.7}[1.0]{(75.5--82.6)} &
+78.7 \scalebox{.7}[1.0]{(74.9--82.1)} &
+78.1 \scalebox{.7}[1.0]{(74.3--81.5)}\\
+{} & 0.4 &
+4.8 \scalebox{.7}[1.0]{(3.3--7.1)} &
+6.1 \scalebox{.7}[1.0]{(4.4--8.6)} &
+7.7 \scalebox{.7}[1.0]{(5.7--10.3)} &
+79.3 \scalebox{.7}[1.0]{(75.6--82.6)} &
+78.7 \scalebox{.7}[1.0]{(74.9--82.0)} &
+\sout{77.9 \scalebox{.7}[1.0]{(74.1--81.4)}} &
+4.9 \scalebox{.7}[1.0]{(3.3--7.1)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.3 \scalebox{.7}[1.0]{(3.7--7.7)} &
+79.4 \scalebox{.7}[1.0]{(75.7--82.7)} &
+77.1 \scalebox{.7}[1.0]{(73.2--80.5)} &
+74.7 \scalebox{.7}[1.0]{(70.7--78.3)}\\
+{} & 0.8 &
+5.1 \scalebox{.7}[1.0]{(3.5--7.5)} &
+7.3 \scalebox{.7}[1.0]{(5.3--9.9)} &
+9.3 \scalebox{.7}[1.0]{(7.1--12.2)} &
+80.7 \scalebox{.7}[1.0]{(77.0--83.9)} &
+\sout{79.9 \scalebox{.7}[1.0]{(76.1--83.1)}} &
+\sout{78.6 \scalebox{.7}[1.0]{(74.8--82.0)}} &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+5.3 \scalebox{.7}[1.0]{(3.6--7.6)} &
+5.3 \scalebox{.7}[1.0]{(3.7--7.7)} &
+80.9 \scalebox{.7}[1.0]{(77.3--84.1)} &
+77.2 \scalebox{.7}[1.0]{(73.3--80.6)} &
+73.2 \scalebox{.7}[1.0]{(69.2--76.9)}\\
+\textsc{b} & 0.0 &
+4.9 \scalebox{.7}[1.0]{(3.4--7.2)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+80.5 \scalebox{.7}[1.0]{(76.8--83.8)} &
+80.3 \scalebox{.7}[1.0]{(76.6--83.6)} &
+79.5 \scalebox{.7}[1.0]{(75.8--82.8)} &
+4.9 \scalebox{.7}[1.0]{(3.4--7.2)} &
+5.2 \scalebox{.7}[1.0]{(3.6--7.5)} &
+5.4 \scalebox{.7}[1.0]{(3.7--7.8)} &
+80.5 \scalebox{.7}[1.0]{(76.8--83.7)} &
+80.3 \scalebox{.7}[1.0]{(76.6--83.6)} &
+79.4 \scalebox{.7}[1.0]{(75.7--82.7)}\\
+{} & 0.4 &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+6.2 \scalebox{.7}[1.0]{(4.4--8.6)} &
+7.4 \scalebox{.7}[1.0]{(5.4--10.0)} &
+81.1 \scalebox{.7}[1.0]{(77.4--84.3)} &
+80.5 \scalebox{.7}[1.0]{(76.8--83.7)} &
+\sout{79.6 \scalebox{.7}[1.0]{(75.8--82.9)}} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.2)} &
+5.0 \scalebox{.7}[1.0]{(3.4--7.3)} &
+5.3 \scalebox{.7}[1.0]{(3.7--7.7)} &
+81.2 \scalebox{.7}[1.0]{(77.5--84.4)} &
+79.2 \scalebox{.7}[1.0]{(75.4--82.5)} &
+76.6 \scalebox{.7}[1.0]{(72.6--80.1)}\\
+{} & 0.8 &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+7.1 \scalebox{.7}[1.0]{(5.2--9.7)} &
+9.0 \scalebox{.7}[1.0]{(6.8--11.9)} &
+82.0 \scalebox{.7}[1.0]{(78.3--85.1)} &
+\sout{81.5 \scalebox{.7}[1.0]{(77.9--84.7)}} &
+\sout{80.4 \scalebox{.7}[1.0]{(76.7--83.7)}} &
+4.9 \scalebox{.7}[1.0]{(3.4--7.2)} &
+5.1 \scalebox{.7}[1.0]{(3.5--7.4)} &
+5.3 \scalebox{.7}[1.0]{(3.6--7.6)} &
+82.1 \scalebox{.7}[1.0]{(78.5--85.2)} &
+79.3 \scalebox{.7}[1.0]{(75.6--82.7)} &
+75.7 \scalebox{.7}[1.0]{(71.8--79.3)}\\
+\bottomrule
+\end{tabular}}
+\end{center}
+\label{tab:error_rates_weibull}
+\end{sidewaystable}
+
+These Tables also show the power of each shuffling strategy when there is true signal present. For the cases in which the false positive rate is not controlled, the test is invalid, and as a consequence, considerations of power are irrelevant; in these cases, the values that would represent power are shown crossed by a line. When the data are truly independent, hence unrestricted shuffling could be performed, the proposed restricted permutations caused a slight, yet consistent, loss of power for the datasets \textsc{a} and \textsc{b}. This is revisited in the next section, with the other synthetic datasets. Histograms of p-values using permutations, sign flippings, and permutations with sign flippings, for cases of normal and skewed distributions, and using both unrestricted and restricted shuffling, for dataset \textsc{a}, are shown in Figure~\ref{fig:errorrates} (the pattern is similar for dataset \textsc{b}). These extend the results shown in Tables~\ref{tab:error_rates_gaussian}, \ref{tab:error_rates_laplace} and \ref{tab:error_rates_weibull}, with an overview of the frequencies of p-values throughout the whole $[0\; 1]$ interval. Except for the use of the \textsc{ise} with skewed errors (assumptions violated), in general the use of restricted shuffling ensured that the histograms were all flat, as desirable, with no excesses of p-values at any range. Even for \textsc{ise} with skewed errors, a test that otherwise would be invalid, became valid on average and therefore useful in practice, although conservative. Power changes, though slight, are visible. Bland--Altman plots shown in the Figure~\ref{fig:bland_altman} reveal that, even in the absence of dependence for data and for design, and without any simulated effect, the p-values for each test are not identical for unrestricted versus restricted shuffling, with the differences falling well outside the confidence interval for a much larger fraction of tests than the 5\% that would be expected by chance.
+
+\begin{figure}[!b]
+\caption{\emph{(on page \pageref{fig:errorrates_noref})} Pictorial table showing the histograms of the distributions of p-values in different settings for the dataset \textsc{a}. In each histogram, the horizontal axis contains p-values in the range 0 to 1, split into 20 bins, while the vertical axis contains the relative frequencies. For the error rates, the vertical axis in the range 0 to 14\%, in steps of 1\%, and for power, in the range 0 to 100\%, in steps of 10\%. The error bars indicate one standard deviation on the height of each bar after 500 repetitions. To facilitate viewing, the bars for the error rates are shown in blue; for power, in green when the respective error rate was controlled at the nominal level of the test, or in red when the test became invalid. In general, when there is no actual dependence structure among either the data or model, the false positive rate was controlled; however, the tests became invalid when observations in both were not independent. This can be observed easily by noting that when $h^2_{\mathbf{m}}$ and $h^2_{\boldsymbol{\epsilon}}$ are both larger than zero, and in the absence of signal, there are excesses of very low and very high p-values. See the main text for details.}
+\label{fig:errorrates}
+\end{figure}
+
+\begin{figure}[!b]
+\caption{\emph{(on page \pageref{fig:bland_altman_noref})} Pictorial table showing the Bland--Altman plots comparing the unrestricted with the restricted permutations for the dataset \textsc{a}. In each scatter plot, the horizontal axis contains average of the restricted and unrestricted p-values, in the range 0 to 1 and in steps of 0.1 in the marked grid, while the vertical axis contains the difference between the unrestricted and the restricted p-values, such that negative differences correspond to larger (less significant) restricted p-values. For the plots without effect, the vertical axis is in the range $-0.3$ to $0.3$ and in steps of $0.1$, and for those with effect, in the range $-0.8$ to $0.8$ and in steps of $0.2$. Because there would be too many p-values to be shown ($2.5\cdot 10^{5}$, that is, 500 repetitions of 500 tests for each configuration), here only 1000 dots are shown on each of the 96 panels, two from each set at every repetition, selected randomly. To facilitate viewing, the dots for the error rates are shown in blue; for power, in green. The ellipsoids, shown in red, indicate the 95\% confidence intervals.}
+\label{fig:bland_altman}
+\end{figure}
+
+\begin{figure}[!p]
+\centering
+\hspace*{-5mm}\includegraphics[scale=.9]{figures/errorrates.pdf}
+\label{fig:errorrates_noref}
+\end{figure}
+
+\begin{figure}[!p]
+\centering
+\hspace*{-5mm}\includegraphics[scale=.9]{figures/bland_altman.pdf}
+\label{fig:bland_altman_noref}
+\end{figure}
+
+\subsection{Power}
+
+For the nine synthetic datasets, a slight, yet consistent loss of power was observed when using the proposed restricted shuffling strategy, compared to the results using unrestricted shuffling when the last was, in fact, possible. These results are shown in Table~\ref{tab:hamming}. The loss appears to be larger for the datasets with more involved dependence structures (e.g., dataset \textsc{d}), or when restrictions on permutations are imposed at higher levels (e.g., dataset \textsc{e}), or on sign flippings at lower levels (e.g., datasets \textsc{f} and \textsc{g}). Even so, this is not quite as conspicuous with samples that are just modestly larger (e.g., \textsc{a} and \textsc{b}), or much larger (e.g., datasets \textsc{h} and \textsc{i}, that use the data structure from the \textsc{hcp}).
+
+\begin{table}[tp]
+\caption{Relationship between the average Hamming distance across shufflings and the observed power ($\pm$ standard deviation). In general, larger reductions in the Hamming distance when using restricted permutations (\textsc{ee}) caused more noticeable losses in power (see also Figure~\ref{fig:hamming}). The loss did not correlate with the Hamming distance when using sign flippings only (\textsc{ise}) or permutations with sign flippings (\textsc{ee+ise}). In these cases, the power changes were generally minimal.}
+\begin{center}
+{\small
+\begin{tabular}{@{}lr@{\hspace{3pt}}c@{\hspace{3pt}}lr@{\hspace{3pt}}c@{\hspace{3pt}}lr@{\hspace{3pt}}c@{\hspace{3pt}}lr@{\hspace{3pt}}c@{\hspace{3pt}}l@{}}
+\toprule
+{} & \multicolumn{6}{c}{Unrestricted shuffling} & \multicolumn{6}{c}{Restricted shuffling} \\
+\cmidrule(lr){2-7} \cmidrule(l){8-13}
+{} & \multicolumn{3}{c}{Hamming} & \multicolumn{3}{c}{Power} & \multicolumn{3}{c}{Hamming} & \multicolumn{3}{c}{Power}\\
+Set & \multicolumn{3}{c}{distance} & \multicolumn{3}{c}{(\%)} & \multicolumn{3}{c}{distance} & \multicolumn{3}{c}{(\%)}\\
+\midrule
+\multicolumn{13}{l}{\emph{Permutations only:}}\\
+\textsc{a} & 34.929 & $\pm$ & 0.051 & 49.17 & $\pm$ & 7.18 & 33.956 & $\pm$ & 0.123 & 47.97 & $\pm$ & 7.22 \\
+\textsc{b} & 25.945 & $\pm$ & 0.052 & 48.45 & $\pm$ & 7.77 & 24.956 & $\pm$ & 0.104 & 46.68 & $\pm$ & 7.57 \\
+\textsc{c} & 9.980 & $\pm$ & 0.041 & 46.52 & $\pm$ & 10.92 & 9.981 & $\pm$ & 0.044 & 46.57 & $\pm$ & 10.73 \\
+\textsc{d} & 16.965 & $\pm$ & 0.044 & 48.01 & $\pm$ & 10.93 & 11.003 & $\pm$ & 0.122 & 32.48 & $\pm$ & 8.48 \\
+\textsc{e} & 13.973 & $\pm$ & 0.048 & 47.57 & $\pm$ & 10.23 & 9.991 & $\pm$ & 0.106 & 34.58 & $\pm$ & 8.80 \\
+\textsc{f} & 13.867 & $\pm$ & 0.084 & 45.16 & $\pm$ & 10.11 & 12.000 & $\pm$ & 0.000 & 38.14 & $\pm$ & 8.69 \\
+\textsc{g} & 13.972 & $\pm$ & 0.047 & 47.46 & $\pm$ & 10.18 & 13.975 & $\pm$ & 0.066 & 46.93 & $\pm$ & 10.21 \\
+\textsc{h} & 515.996 & $\pm$ & 0.042 & 49.59 & $\pm$ & 2.37 & 496.000 & $\pm$ & 0.307 & 48.41 & $\pm$ & 2.16 \\
+\textsc{i} & 515.994 & $\pm$ & 0.043 & 49.56 & $\pm$ & 2.25 & 496.063 & $\pm$ & 0.326 & 48.45 & $\pm$ & 2.23 \\
+\midrule
+\multicolumn{13}{l}{\emph{Sign flippings only:}}\\
+\textsc{a} & 17.959 & $\pm$ & 0.131 & 48.13 & $\pm$ & 6.81 & 18.000 & $\pm$ & 0.000 & 44.74 & $\pm$ & 6.28\\
+\textsc{b} & 13.476 & $\pm$ & 0.109 & 47.23 & $\pm$ & 7.66 & 13.500 & $\pm$ & 0.000 & 44.06 & $\pm$ & 7.17\\
+\textsc{c} & 5.495 & $\pm$ & 0.062 & 44.16 & $\pm$ & 10.27 & 5.489 & $\pm$ & 0.069 & 44.20 & $\pm$ & 10.07\\
+\textsc{d} & 8.715 & $\pm$ & 0.375 & 42.83 & $\pm$ & 10.97 & 9.000 & $\pm$ & 0.000 & 38.59 & $\pm$ & 8.75\\
+\textsc{e} & 7.492 & $\pm$ & 0.076 & 45.04 & $\pm$ & 9.05 & 7.479 & $\pm$ & 0.074 & 45.00 & $\pm$ & 9.29\\
+\textsc{f} & 7.215 & $\pm$ & 0.332 & 41.81 & $\pm$ & 10.35 & 7.500 & $\pm$ & 0.000 & 38.45 & $\pm$ & 7.99\\
+\textsc{g} & 7.292 & $\pm$ & 0.366 & 42.06 & $\pm$ & 10.22 & 7.500 & $\pm$ & 0.000 & 38.45 & $\pm$ & 7.99\\
+\textsc{h} & 258.528 & $\pm$ & 0.478 & 49.48 & $\pm$ & 2.23 & 258.440 & $\pm$ & 0.900 & 49.36 & $\pm$ & 2.34\\
+\textsc{i} & 258.542 & $\pm$ & 0.505 & 49.59 & $\pm$ & 2.33 & 258.525 & $\pm$ & 0.761 & 49.41 & $\pm$ & 2.33\\
+\midrule
+\multicolumn{13}{l}{\emph{Permutations with sign flippings:}}\\
+\textsc{a} & 35.432 & $\pm$ & 0.042 & 50.07 & $\pm$ & 7.19 & 34.913 & $\pm$ & 0.095 & 50.00 & $\pm$ & 7.19\\
+\textsc{b} & 26.449 & $\pm$ & 0.040 & 49.72 & $\pm$ & 7.74 & 25.914 & $\pm$ & 0.092 & 49.24 & $\pm$ & 7.56\\
+\textsc{c} & 10.483 & $\pm$ & 0.041 & 50.30 & $\pm$ & 10.97 & 10.471 & $\pm$ & 0.033 & 50.32 & $\pm$ & 10.91\\
+\textsc{d} & 17.465 & $\pm$ & 0.041 & 49.94 & $\pm$ & 11.11 & 14.450 & $\pm$ & 0.137 & 46.29 & $\pm$ & 10.55\\
+\textsc{e} & 14.471 & $\pm$ & 0.039 & 49.87 & $\pm$ & 10.19 & 12.452 & $\pm$ & 0.088 & 48.81 & $\pm$ & 10.11\\
+\textsc{f} & 14.472 & $\pm$ & 0.039 & 49.93 & $\pm$ & 10.18 & 13.470 & $\pm$ & 0.085 & 47.79 & $\pm$ & 9.85\\
+\textsc{g} & 14.474 & $\pm$ & 0.035 & 49.95 & $\pm$ & 10.15 & 14.456 & $\pm$ & 0.055 & 49.05 & $\pm$ & 10.16\\
+\textsc{h} & 516.480 & $\pm$ & 0.036 & 49.68 & $\pm$ & 2.26 & 505.953 & $\pm$ & 0.569 & 49.65 & $\pm$ & 2.31\\
+\textsc{i} & 516.481 & $\pm$ & 0.038 & 49.61 & $\pm$ & 2.32 & 506.072 & $\pm$ & 0.570 & 49.69 & $\pm$ & 2.25\\
+\bottomrule
+\end{tabular}}
+\end{center}
+\label{tab:hamming}
+\end{table}
+
+With exchangeable errors, in which only permutations are performed, power reductions were more noticeable for some datasets and related well to how the data could be disarranged at each permutation, as quantified by the average Hamming distance across the permutations that were performed. This is shown in Table~\ref{tab:hamming}, and also visually in Figure \ref{fig:hamming}. With independent and symmetric errors, in which only sign flippings are performed, the power losses were considerably smaller, and unrelated to the Hamming distance. In the same manner, permutations combined with sign flippings showed power changes that were minimal, and unrelated to the Hamming distance. Moreover, in these cases the resulting power was, for all datasets, higher than for just permutations or just sign flippings.
+
+\begin{figure}[tbp]
+\centering
+\includegraphics{figures/hamming.pdf}
+\caption{Changes in power related well to the average Hamming distance across permutations for the nine simulated datasets \textsc{a}--\textsc{i} (see also Table~\ref{tab:hamming}). When all dots are considered, $R^2 = 0.7557$ for a linear fit (dashed line); when only the centres of mass for each dataset (marked with ``$\times$'' and indicated with arrows) are considered, $R^2 = 0.9902$.}
+\label{fig:hamming}
+\end{figure}
+
+Table~\ref{tab:hamming} and Figure~\ref{fig:hamming} show a considerable dispersion of the observed power around the average. In the simulations, this dispersion can be reduced by one order of magnitude approximately just by using the same data and design for all repetitions, varying only the set of shufflings that are performed. Although this reduced dispersion would reflect more accurately the actual variation that different shufflings would cause on a given real experiment, the average power would be dependent on the exact, but random values used for the simulations, and would not be appropriate for the investigation performed here. The magnitude of variations on power as shown does not translate to actual experiments and should not be interpreted as such.
+
+\subsection{Real data}
+
+Summary statistics for height, weight, \textsc{bmi}, global cortical surface area, and global average thickness for the analysed \textsc{hcp} sample are shown in Table~\ref{tab:heritabilities}. The same Table also shows that, consistently with the literature, all these quantities are highly and significantly heritable, even when a conservative surrogate for common environment is included in the model. In fact, the estimated common environment fraction of the variance ($c^2$) was zero for all traits except for height. When the shared environment term is removed from the model, the estimated heritability for height increases to 0.8771 (standard error: 0.0244, $2D_{\text{LL}}$ = 146.9, p-value: 4.1 $\cdot$ 10$^{-34}$).
+
+\begin{table}[tbp]
+\caption{Heritabilities ($h^2$) for the indices of body size and for global cortical surface area and global average thickness on the sample of \textsc{hcp} subjects when a surrogate for common enviroment effects ($c^2$) is included in the model. The standard errors (\textsc{se}), the test statistic ($2D_{\text{LL}}$), and the p-values are also shown. Only for height the common environment effect was estimated to be different than zero. All traits being highly heritable implies that permutation for analysis of their relationship must take the dependence structure into account.}
+{\small
+\begin{center}
+\hspace*{-3mm}\begin{tabular}{@{}lllrlllrl@{}}
+\toprule
+{} & \multicolumn{4}{c}{Additive genetic} & \multicolumn{4}{c}{Common environment}\\
+\cmidrule(lr){2-5} \cmidrule(l){6-9}
+Trait & $h^2$ & \textsc{se} & $2D_{\text{LL}}$ & p-value & $c^2$ & \textsc{se} & $2D_{\text{LL}}$ & p-value\\
+\midrule
+Height       & 0.7346 & 0.1035 & 35.4  & $1.3 \cdot 10^{-9}$  & 0.1409 & 0.0990 & 1.9 & $8.7 \cdot 10^{-2}$\\
+Weight       & 0.7248 & 0.0580 & 61.1  & $2.8 \cdot 10^{-15}$ & 0.0000 & -- & -- & --\\
+\textsc{bmi} & 0.7390 & 0.0572 & 62.1  & $1.6 \cdot 10^{-15}$ & 0.0000 & -- & -- & --\\
+Area         & 0.8697 & 0.0274 & 125.3 & $2.2 \cdot 10^{-29}$ & 0.0000 & -- & -- & --\\
+Thickness    & 0.8961 & 0.0232 & 125.5 & $1.9 \cdot 10^{-29}$ & 0.0000 & -- & -- & --\\
+\bottomrule   
+\end{tabular}
+\end{center}}
+\label{tab:heritabilities}
+\end{table}
+
+Permuting the data freely to test the hypotheses of correlation between thickness or area and indices of body size, therefore not respecting the structure of the sibships, allowed the identification of a few seemingly significant associations, even after \textsc{fwer} correction across the whole brain, and considering that both positive and negative tests were being performed. These regions, shown in Figure~\ref{fig:realdata}, are (1) left anterior cingulate for a positive correlation between height and cortical surface area, (2) right orbitofrontal medial cortex for a positive correlation between thickness and \textsc{bmi}, (3), right temporal pole, at the confluence of the inferior temporal gyrus, for a negative correlation between thickness and body weight, and (4) right inferior temporal gyrus for a negative correlation between thickness and height. All these regions are very small, two of them comprising just one vertex at the resolution of the surfaces. However, using the proposed multi-level permutation strategy, in which shufflings only happen within siblings of the same type, and in which families with identical structure are allowed to be permuted as a whole, therefore respecting the kinship structure, all these findings became no longer significant. Table~\ref{tab:minfwep} shows the minimum (most significant) p-value throughout the brain for both unrestricted and restricted permutation.
+
+\begin{figure}[!tbp]
+\centering
+\includegraphics{figures/realdata.pdf}
+\caption{Maps showing the locations of the peaks of significance, for positive ($+$) and negative ($-$) correlations of height, weight, and \textsc{bmi} with cortical surface area and thickness. For conciseness, and given their lack of overlap, the original maps for thickness were thresholded at 0.05 and added together, allowing the regions to be displayed in the same figure. Even after using \textsc{fwer}-correction across the brain and contrasts, the unrestricted shuffling identified seemingly significant regions; these regions were not found significant using the restricted permutations that respect the family structure in the \textsc{hcp} sample. Provided that these traits are highly non-independent between subjects (i.e., heritable) this suggests that these results, produced with simple, unrestricted permutation, are in fact \textbf{false positives} (the peaks of significance for both restricted and unrestricted are listed in Supplementary Table~\ref{tab:minfwep}).}
+\label{fig:realdata}
+\end{figure}
+
+\begin{table}[!tbp]
+\caption{Peak significance levels for each of the correlations between height, weight and \textsc{bmi}, and cortical thickness and local cortical surface area. The p-values below $\alpha = 0.05$ are marked in \textbf{bold}; all values are corrected controlling the familywise-error rate (\textsc{fwer}) across the whole brain and across both positive and negative correlations. Permuting the data freely, therefore violating exchangeability, identified seemingly significant associations. However, using the proposed permutation strategy that respects the data structure, these findings disappear, suggesting that these significant results are, in fact, \textbf{false positives}. See also Figure~\ref{fig:realdata} in the main text.}
+{\small
+\begin{center}
+\begin{tabular}{@{}lcccccccc@{}}
+\toprule
+{} & \multicolumn{4}{c}{Cortical surface area} & \multicolumn{4}{c}{Cortical thickness}\\
+\cmidrule(rl){2-5} \cmidrule(l){6-9}
+Trait & \multicolumn{2}{c}{Unrestricted} & \multicolumn{2}{c}{Restricted} & \multicolumn{2}{c}{Unrestricted} & \multicolumn{2}{c}{Restricted}\\
+\cmidrule(rl){2-3} \cmidrule(rl){4-5} \cmidrule(rl){6-7} \cmidrule(l){8-9}
+{} & Left & Right & Left & Right & Left & Right & Left & Right \\
+\midrule
+\multicolumn{9}{l}{\emph{Positive correlation:}}\\
+Height & \textbf{0.0476} & 0.2178 & 0.1530 & 0.4398 & 0.4168 & 0.0734 & 0.6438 & 0.1694 \\
+Weight & 0.9524 & 0.7448 & 0.9724 & 0.8346 & 0.2348 & 0.1706 & 0.3118 & 0.2376 \\
+\textsc{bmi} & 1.0000 & 0.9368 & 1.0000 & 0.9586 & 0.0950 & \textbf{0.0340} & 0.1376 & 0.0522 \\
+\midrule
+\multicolumn{9}{l}{\emph{Negative correlation:}}\\
+Height & 0.9674 & 0.9936 & 0.9944 & 0.9996 & 0.2206 & \textbf{0.0306} & 0.4204 & 0.0788\\
+Weight & 0.9960 & 0.9908 & 0.9992 & 0.9978 & 0.1246 & \textbf{0.0462} & 0.1860 & 0.0810\\
+\textsc{bmi} & 0.8002 & 0.9848 & 0.8644 & 0.9926 & 0.4492 & 0.2674 & 0.5620 & 0.3588 \\
+\bottomrule
+\end{tabular}
+\end{center}}
+\label{tab:minfwep}
+\end{table}
+
+\section{Discussion}
+
+\subsection{Error rates and power}
+
+The proposed multi-level shuffling strategy controlled the false positive rate at the nominal level in all configurations evaluated. With the only exception of sign flippings in the presence of skewed errors, which clearly violates assumptions, the empirical distribution of p-values was uniform, as desired, whenever shufflings respected the dependence structure present in the data; ignoring the dependence resulted in inflated error rates, rendering the test invalid. Having dependence in both data and model may seem unusual, but in fact, this is a quite common scenario, as exemplified with the data from the \textsc{hcp}.
+
+The guaranteed validity and exactness of p-values came, however, at the price of a small, yet noticeable and consistent reduction in power, that related to the complexity of the dependence structure and the ensuing restrictions on exchangeability. This can be understood by noting that the restricted permutation strategy does not disarrange the data as much as the unrestricted shuffling, with the consequence that the statistics computed after permuting the data may not be as distant from the statistic computed from the unpermuted data. With sign flippings, the power losses were smaller, and unrelated to the Hamming distance, presumably because even changes seemingly small, such as a single sign swap, can cause large perturbations on the shuffled data, sufficient to minimise reductions on sensitivity. Permutations combined with sign flippings showed minimal power changes that were also unrelated to the average Hamming distance, and with losses that were smaller than for just permutations or just sign flippings, suggesting that when both \textsc{ee} and \textsc{ise} are valid for a given model, permutations with sign flippings can allow maximum efficiency.\footnote{It should be noted, however, that explicitly selecting permutations that maximise the amount of disarrangement applied to the data, i.e., performing only those with highest Hamming distance, cause the error rates not to be controlled; conversely, a selection of only those that cause less shuffling cause the test to become conservative (results not shown).}
+
+Although the diminished sensitivity could suggest that the multi-level permutation strategy would be ``conservative'' this is not the case, as can be attested by the exact control over error rates. This apparent incongruity can be understood through the Bland--Altman plots shown in the Supplementary Material, that show that the differences in uncorrected p-values between both strategies is largely outside the margins of the confidence interval in both directions, suggesting that, under the null, variations in p-values can go in any direction when the strategies are compared. Nonetheless, in the presence of signal, or when the p-values are corrected for multiple testing using the distribution of the largest statistic across variables (such as voxels), the p-values for the restricted strategy tend to be stochastically larger than those for the free shuffling.
+
+The restrictions imposed on the possible rearrangements that can be performed, with the consequent reduction in the number of possible permutations, as well as the lessened sensitivity, could be seen as negative, but in fact, such restrictions establish a set of rules under which permutation inference can be performed in settings where otherwise it would not possible without appealing to often untenable assumptions, or that would not be possible at all. Simple permutation, if performed, would create data that could be impossible to be observed in practice, and thus, that should not be used to construct the reference distribution to test the hypotheses of interest. Moreover, the stronger the dependency is between observations, the fewer genuinely independent pieces of information are available to test a given hypothesis; in this scenario, smaller power does not appear unexpected.
+
+\subsection{Body size and cortical morphology}
+
+Height, weight, and \textsc{bmi} are known to be highly heritable in general, and were so for the \textsc{hcp} sample. Likewise, the heritability for global cortical surface area and average thickness are known to be heritable, and were found as such in the sample analysed. All these traits remained highly heritable even when a potential confound --- a surrogate for household and maternal effects --- was included. Even if estimated heritability were reduced, common effects would still cause the observations not to be independent. The fact that for all these traits there is a strong dependence between the observations implies that a permutation test that ignores the relationship between observations would not be valid, by violating the exchangeability assumption.
+
+Indeed, the test that shuffled the data freely identified a few positive and negative localised significant associations between indices of body size and cortical area and thickness, even after \textsc{fwer} correction considering all tests in both hemispheres and the fact that positive and negative hypotheses were being tested. None of these areas were found to be significant if the test used only permutations that respected the structure present in the data, in the multi-level fashion, suggesting that these findings are likely false positives. None of the regions implicated were reported in previous studies that investigated relationships between indices of body size and cortical morphology \citep{Pannacciulli2006, Raji2010, Ho2010, Ho2011, Smucny2012, Curran2013, Marques-Iturria2013, Melka2013, Bond2014} that we could identify. It should be conceded, however, that not all these studies used the same methods, with some having analysed gray matter volumes in voxel-based representations of the brain, and some, despite using surface-based methods, performed analyses in macroscopic regions, as opposed to at each point in the cortical mesh. Still, as the simulations demonstrated, the violation of the exchangeability assumption makes the free permutation prone to inflated amounts of error type \textsc{i} if the observations are not independent, and the absence of similar findings from the literature supports the likelihood that these seemingly significant findings are not genuine, being instead false positives.\footnote{We have run a side analysis (not shown) in which we treated \textsc{dz} pairs as ordinary siblings, i.e., using the tree shown in Figure~\ref{fig:treeHCP_dz2sib} instead of the one in Figure~\ref{fig:treeHCP_full}, and observed results that are very similar to those reported, that is, nothing significant.}
+
+Another aspect is that, although \textsc{fwer}-correction was applied considering the multiplicity of vertices in the mesh representation of the cortex and the two contrasts (positive and negative), no correction was applied considering that overall six tests were performed (three independent variables versus two dependent variables); \textsc{fwer}-controlling procedures that would take into account the non-independence between these tests are currently not available. Using Bonferroni correction, the results using the free permutation, which are likely false-positives as discussed above, disappear. Since most studies --- and in fact, most of those referenced in the previous paragraph --- investigated only the relationship between one independent versus one dependent variable, for which no such correction is necessary, the results shown emulate well the risk of false positives in similar, real studies.
+
+\subsection{Applications and other considerations}
+
+In addition to the above examples, and most clearly, with a direct application for the \textsc{hcp} data, the multi-level permutation strategy can be considered for repeated measurements designs in which within- and between-subject factors are tested in the same model or contrast, such as for a continuous regressor. A direct comparison of the power observed for datasets \textsc{e}, \textsc{f} and \textsc{g}, using permutations only, shows that even with the same number of subjects, the combination of within-block with whole-block permutation can be more powerful than each of these used in isolation. Moreover, the strategy can also be considered when not all measurements for a given subject are available, as long as compound symmetry within subject remains valid, without the need to exclude entirely the data for subjects as would be the case for whole-block permutation.
+
+As experiments are planned considering strategies for subsequent analyses, the use of permutation tests can be included among the tools available, especially given its simplicity and, as demonstrated here and in a large body of literature, flexibility to accommodate designs and data that can be quite complex. Adequate planning includes ensuring that assumptions for permutation tests are met from the beginning, such as that the random errors of the instrument are stable along time, and do not vary with the values they measure, that the observations if not independent, possess a dependence structure that can be accommodated in a framework as the one shown here, and that observations, if not homogeneous, can be broadly qualified into a few number of variance groups.
+
+Indeed, regarding \textsc{vg}s, the compatibility of these with the blocks ensures the feasibility of permutation tests, but it also allows that the necessary assumptions are reduced to a minimum: instead of requiring that all observations are homoscedastic (strong), the maximum possible amount of heterogeneity of variances that could still permit the shuffling as indicated by the blocks (weaker assumption) can be allowed. In this case, homogeneity would still be there, although not across all and every observation, just the minimal amount necessary so that the experiment can still be analysed. These considerations may not be relevant if the recruiting process, experimental conditions or data collection can guarantee that the same variance is homogeneous, but may be necessary when the data collection or samples are not under direct control of the researcher (e.g., reanalysis of past experiments, or census data).
+
+\section{Conclusion}
+
+The proposed multi-level block permutation effectively controls the false positive rate, even in the presence of strong dependence between observations, and can be used as a general inference tool when the dependence structure can be organised in blocks, hierarchically if necessary. There is an unavoidable loss of power due to reduced scope of shuffling, although in large datasets, with relatively complex dependence structure, such as the \textsc{hcp}, this loss is expected to be quite small, especially if permutations can be combined with sign flippings.

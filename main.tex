@@ -1,0 +1,160 @@
+\documentclass[a4paper,twoside,12pt]{report}
+
+% Load packages
+% \usepackage[utf8x]{inputenc}
+\usepackage[UKenglish]{babel}
+\usepackage[round]{natbib}             % commands \citep e \citet for natural citations
+\usepackage{nextpage}                  % blank pages with \cleartooddpage
+\usepackage{amssymb}                   % maths stuff
+\usepackage{amsfonts}                  % maths stuff
+\usepackage{amsmath}                   % maths stuff
+\usepackage{amsbsy}                    % maths stuff
+\usepackage{color}                     % for coloured text & links
+\usepackage{array,arydshln}
+\usepackage{booktabs}                  % hrule with different widths and thicknesses
+\usepackage{multirow}
+\usepackage{pifont}
+\usepackage{textcomp}
+\usepackage{algpseudocode}             % for the algorithm pseudocode
+\usepackage{enumitem}
+\usepackage{setspace}                  % command \setstretch for line spacing on the text only
+\usepackage[figuresright]{rotating}    % environment sidewaystable
+\usepackage{xfrac}
+\usepackage[normalem]{ulem}
+\usepackage{gensymb}
+\usepackage{adjustbox}
+
+% Temporary packages for testing
+% \usepackage{graphicx}              % comment this out with XeLaTeX, but keep with pdfLaTeX
+%
+% Use XeLaTeX and set fonts
+%\usepackage{mathspec}           % keep math standard TeX fonts, not XeTeX fonts
+\usepackage{xltxtra}            % for the XeLaTeX stuff (it incorporates fontspec)
+\defaultfontfeatures{Mapping=tex-text,Contextuals=Swash,Ligatures={Required,Common,Contextual,Rare}}
+\setmainfont[Numbers=Lining]{Linux Libertine O}
+\setromanfont[Numbers=Lining]{Linux Libertine O}
+\setsansfont{Linux Biolinum O}
+\setmonofont[Scale=MatchLowercase]{Linux Libertine Mono O}
+\renewcommand{\thepage}{\arabic{page}} % font for the page numbers as lining
+
+% Format for the captions
+\usepackage[labelfont=bf,font=small]{caption}
+% \usepackage[bf,small,sf]{caption}
+
+% Some colors
+%\definecolor{colorlink}{rgb}{0, 0.29020, 0.58824}  % dark blue
+\definecolor{colorlink}{rgb}{0, .14510, 0.29412}  % dark blue
+\definecolor{darkgreen}{rgb}{0, .5, 0}  % dark green
+\definecolor{orange}{rgb}{.7, .40, 0}   % some orange
+\definecolor{grey}{rgb}{.6, .6, .6}     % some grey
+\definecolor{oxblue}{rgb}{0, .14510, 0.29412}
+
+% Hyperlinks setup and meta-information
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks,
+  citecolor   = colorlink,
+  filecolor   = colorlink,
+  linkcolor   = colorlink,
+  urlcolor    = colorlink,
+  pdftitle    = {Better statistics, faster},
+  pdfauthor   = {Anderson M. Winkler}}
+
+% Header and footer
+\usepackage{fancyhdr}
+\usepackage[fit]{truncate}
+\fancyhead[RE]{\truncate{0.9\headwidth}{\small\nouppercase{\textbf{\leftmark}}}}
+\fancyhead[LO]{\truncate{0.9\headwidth}{\small\nouppercase{\textbf{\rightmark}}}}
+\fancyhead[RO,LE]{\small\arabic{page}}  % right odd, left even
+\fancyfoot{}
+% \fancyfoot[C]{\textcolor{red}{\textbf{--- UNCORRECTED PROOF ---}}}
+
+% Margins (this uses fancyhdr package)
+%\usepackage{showframe}
+\topmargin      = 0mm
+\oddsidemargin  = 16mm % 5mm
+\evensidemargin = 4mm  % 5mm
+\marginparsep   = 0mm
+\marginparwidth = 0mm
+\textwidth      = 140mm
+\textheight     = 225mm
+\headwidth      = 140mm
+\headheight     = 6mm
+
+% Adjust footnotes indentation
+\usepackage[hang,flushmargin]{footmisc} 
+\renewcommand{\footnotemargin}{.8em}
+
+% Other new commands
+\newcommand{\ud}{\mathrm{d}}
+%\newcommand{\blankpage}{\cleartooddpage[\thispagestyle{empty}]}
+\newcommand{\HRule}{\rule{\linewidth}{0.08em}}
+\renewcommand\multirowsetup{\centering}
+
+\newcommand\blfootnote[1]{%
+  \begingroup
+  \renewcommand\thefootnote{}\footnote{#1}%
+  \addtocounter{footnote}{-1}%
+  \endgroup
+}
+
+% This page intentionally left blank [start] =============
+\makeatletter
+    \def\cleardoublepage{\clearpage%
+        \if@twoside
+            \ifodd\c@page\else
+                \vspace*{\fill}
+                \hfill
+                \begin{center}
+                \begin{small}
+                This page intentionally left blank.
+                \end{small}
+                \end{center}
+                \vspace{\fill}
+                \thispagestyle{empty}
+                \newpage
+                \if@twocolumn\hbox{}\newpage\fi
+            \fi
+        \fi
+    }
+\makeatother
+% This page intentionally left blank [end] ===============
+
+% Line spacing
+%\linespread{1.35} % this affects everything
+\newcommand{\lspac}{1.35}  % this affects only the main text, not footnotes, captions or tables
+\setlength{\skip\footins}{10mm} % distance between text and footnotes
+\setlength{\footnotesep}{4mm} % distance between the actual footnotes
+
+% Sections up to level 4
+\setcounter{secnumdepth}{3}
+\setcounter{tocdepth}{3}
+
+% For the title page
+\title{Statistical analysis of areal quantities in the brain through permutation tests}
+\author{Anderson M. Winkler}
+
+\begin{document}
+%\maketitle
+\bibliographystyle{scabbrvnat}
+
+\include{02firstpages}
+\pagestyle{fancy}
+\setstretch{\lspac}
+\cleardoublepage \tableofcontents
+%\cleardoublepage \listoffigures
+%\cleardoublepage \listoftables
+\cleardoublepage \include{10intro}
+\cleardoublepage \include{20ptree}
+\cleardoublepage \include{30accel}
+\cleardoublepage \include{40cortex}
+%\cleardoublepage \appendix
+%\cleardoublepage \include{70valorisation}
+%\cleardoublepage \include{80supplmat}
+%\cleardoublepage
+\addcontentsline{toc}{chapter}{References}
+\setstretch{1}
+\bibliography{biblio}
+\pagestyle{empty}
+%\cleardoublepage \include{90finalpages}
+\end{document}          
