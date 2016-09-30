@@ -42,10 +42,11 @@
 % \usepackage[bf,small,sf]{caption}
 
 % Some colors
-%\definecolor{colorlink}{rgb}{0, 0.29020, 0.58824}  % dark blue
-\definecolor{colorlink}{rgb}{0, .14510, 0.29412}  % dark blue
+\definecolor{colorlink}{rgb}{0, 0.29020, 0.58824}  % dark blue
+%\definecolor{colorlink}{rgb}{0, .14510, 0.29412}  % oxford blue
 \definecolor{darkgreen}{rgb}{0, .5, 0}  % dark green
 \definecolor{orange}{rgb}{.7, .40, 0}   % some orange
+\definecolor{lightgray}{rgb}{.8, .8, .8}   % some orange
 \definecolor{grey}{rgb}{.6, .6, .6}     % some grey
 \definecolor{oxblue}{rgb}{0, .14510, 0.29412}
 
@@ -57,7 +58,7 @@
   filecolor   = colorlink,
   linkcolor   = colorlink,
   urlcolor    = colorlink,
-  pdftitle    = {Better statistics, faster},
+  pdftitle    = {Widening the applicability of permutation inference},
   pdfauthor   = {Anderson M. Winkler}}
 
 % Header and footer
@@ -98,7 +99,7 @@
   \endgroup
 }
 
-% This page intentionally left blank [start] =============
+% ========== This page intentionally left blank [start] =============
 \makeatletter
     \def\cleardoublepage{\clearpage%
         \if@twoside
@@ -107,7 +108,8 @@
                 \hfill
                 \begin{center}
                 \begin{small}
-                This page intentionally left blank.
+                {\color{lightgray}
+                This page intentionally left blank.}
                 \end{small}
                 \end{center}
                 \vspace{\fill}
@@ -118,7 +120,7 @@
         \fi
     }
 \makeatother
-% This page intentionally left blank [end] ===============
+% ========== This page intentionally left blank [end] ===============
 
 % Line spacing
 %\linespread{1.35} % this affects everything
@@ -131,7 +133,7 @@
 \setcounter{tocdepth}{3}
 
 % For the title page
-\title{Statistical analysis of areal quantities in the brain through permutation tests}
+\title{Widening the applicability of permutation inference}
 \author{Anderson M. Winkler}
 
 \begin{document}
@@ -142,16 +144,16 @@
 \pagestyle{fancy}
 \setstretch{\lspac}
 \cleardoublepage \tableofcontents
-%\cleardoublepage \listoffigures
-%\cleardoublepage \listoftables
+\cleardoublepage \listoffigures
+\cleardoublepage \listoftables
 \cleardoublepage \include{10intro}
 \cleardoublepage \include{20ptree}
 \cleardoublepage \include{30accel}
 \cleardoublepage \include{40cortex}
-%\cleardoublepage \appendix
-%\cleardoublepage \include{70valorisation}
-%\cleardoublepage \include{80supplmat}
-%\cleardoublepage
+\cleardoublepage \include{60conclusion}
+\cleardoublepage \appendix
+\cleardoublepage \include{80supplmat}
+\cleardoublepage
 \addcontentsline{toc}{chapter}{References}
 \setstretch{1}
 \bibliography{biblio}
