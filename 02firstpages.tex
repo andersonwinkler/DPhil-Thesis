@@ -2,9 +2,9 @@
 % ======[COVER]======
 \begin{center}
 %\begin{small}
-\textbf{\textsc{a thesis presented for the degree of}}
+\textbf{\textsc{a thesis submitted for the degree of}}
 
-\textbf{\textsc{Doctor of Phylosophy}}
+\textbf{\textsc{Doctor of Philosophy}}
 %\end{small}
 
 \vspace*{\fill}
@@ -39,7 +39,7 @@
 
 \vspace*{\fill}
 
-\textbf{Trinity/2016}
+\textbf{Trinity 2016}
 \end{center}
 
 % ======[ABSTRACT]======
@@ -47,7 +47,7 @@
 \setstretch{1}
 \renewcommand\abstractname{{\Large Abstract}}
 \begin{abstract}
-Permutation tests can provide exact control of false positives under the reasonable assumption of exchangeability. There are, however, common examples in which global exchangeability does not hold, such as with repeated measurements or tests in which subjects are members of pedigrees. To allow permutation inference in such cases, we test the null hypothesis using only a subset of all otherwise possible permutations, thus retaining the original joint distribution unaltered. Here the notion of exchangeability blocks is extended, allowing nesting in a hierarchical, multi-level definition. We do not explicitly model the degree of dependence between observations, only the lack thereof; such dependence is implicitly accounted for by the hierarchy and by the permutation scheme. The strategy is compatible with heteroscedasticity and variance groups, and can be used with permutations, sign flippings, or both combined. Additionally, we exploit properties of test statistics to obtain accelerations irrespective of generic software or hardware improvements. We compare six different approaches using both synthetic and real data, assessing the methods in terms of their error rates, power, agreement with a reference result, and the risk of taking a different decision regarding the rejection of the null hypotheses (known as the resampling risk). Finally, we investigate the different methods for assessment of cortical volume and area from magnetic resonance images using surface-based methods, and show that volume mostly mirrors variability in surface area, while having little sensitivity to cortical thickness, and this remains the case even when volume is assessed using an improved analytic method. Using data from young adults born with very low birth weight and coetaneous controls, we show that instead of volume, the permutation-based Non-Parametric Combination (NPC) of thickness and area is a more sensitive option for studying joint effects on these two quantities, giving equal weight to variation in both, allowing a better characterisation of biological processes that can affect brain morphology.
+Permutation tests can provide exact control of false positives under the reasonable assumption of exchangeability. There are, however, common examples in which global exchangeability does not hold, such as in experiments with repeated measurements or tests in which subjects are related to each other. To allow permutation inference in such cases, we extend the notion of exchangeability blocks, allowing them to be nested in a hierarchical, multi-level definition, thus retaining the original joint distribution unaltered. The null hypothesis is tested using only a subset of all otherwise possible permutations. We do not explicitly model the degree of dependence between observations, but rather use a permutation scheme that leaves any dependence intact. The strategy is compatible with heteroscedasticity and can be used with permutations, sign flippings, or both combined. Additionally, we exploit properties of test statistics to obtain accelerations irrespective of generic software or hardware improvements. We compare six different approaches using synthetic and real data, assessing the methods in terms of their error rates, power, agreement with a reference result, and the risk of taking a different decision regarding the rejection of the null hypotheses (known as the resampling risk). Finally, we investigate the different methods for assessment of cortical volume and area from magnetic resonance images using surface-based methods, and show that volume mostly mirrors variability in surface area, while having little sensitivity to cortical thickness, and this remains the case even when volume is assessed using an improved analytic method. Using data from young adults born with very low birth weight and coetaneous controls, we show that instead of volume, the permutation-based non-parametric combination (NPC) of thickness and area is a more sensitive option for studying joint effects on these two quantities, giving equal weight to variation in both, and allowing a better characterisation of biological processes that can affect brain morphology.
 \end{abstract}
 
 % ======[ACKNOWLEDGEMENTS]======
@@ -68,19 +68,25 @@ Permutation tests can provide exact control of false positives under the reasona
 \`{A} minha fam\'{i}lia.
 
 \vspace{3mm}\noindent
-To my thesis advisors, Prof.\ Dr.\ Stephen M.\ Smith and Prof.\ Dr.\ Thomas E.\ Nichols.
+To my doctoral advisors, Prof.\ Stephen M.\ Smith and Prof.\ Thomas E.\ Nichols, endless sources of knowledge and inspiration.
 
 \vspace{3mm}\noindent
-I am very much indebted to the National Resarch Council of Brazil (\textsc{cnp}q), without which this work would have been impossible.
+To my friends, for their infinite patience and support.
 
 \vspace{3mm}\noindent
-I am thankful to the strong, prolific, and enriching collaboration that have helped and improved all the chapters. Chapter~\ref{sec:ptree} received helpful feedback from Matthew A.\ Webster and Diego Vidaurre. Likewise, Chapter~\ref{sec:accel} received much welcome input from Gerard R.\ Ridgway and Gwena\"{e}lle Douaud. Chapter~\ref{sec:cortex} would have been impossible without the close collaboration of Lars M.\ Rimol, Knut J.\ Bjuland, Jon Skranes, Douglas N.\ Greve, Asta K.\ H{\aa}berg, and Mert R.\ Sabuncu.
+I am very much indebted to the National Resarch Council of Brazil (Conselho Nacional de Desenvolvimento Cient\'{i}fico e Tecnol\'{o}gico --- \textsc{cnp}q), without which this work would have been impossible.
+
+\vspace{3mm}\noindent
+A strong, prolific, and enriching collaboration have helped and improved all the chapters, and I am very much thankful for these fruitful interactions. Chapter~\ref{sec:ptree} received helpful feedback from Matthew A.\ Webster, Diego Vidaurre, and Gerg\H{o} Nemes. Likewise, Chapter~\ref{sec:accel} received much welcome input from Gerard R.\ Ridgway and Gwena\"{e}lle Douaud. Chapter~\ref{sec:cortex} would have been impossible without the close collaboration with Lars M.\ Rimol, Jon Skranes, Knut J\o{}rgen Bjuland, Douglas N.\ Greve, Asta K.\ H{\aa}berg, and Mert R.\ Sabuncu.
 
 \vspace{3mm}\noindent
 My time in Oxford was made even better thanks to the people in the colleges to which I was at one time or another affiliated: St.\ Cross and St.\ Edmund Hall. Under the risk unfair omissions, some I would like to thank nominally: Prof.\ Keith Gull, Dr.\ Richard Willden. Prof.\ Heidi Johansen--Berg, Prof.\ Paul M.\ Matthews, Dr.\ Charlotte Stagg, Sir Mark Jones, Prof.\ Petros Ligoxygakis, and Dr. Katie Warnaby, all of whom, through their remarkable work and friendliness, have made these years extremely enjoyable.
 
 \vspace{3mm}\noindent
-At \textsc{fmrib}, the list is long, and again, in the hope of not unfairly omitting anyone, I am much thankful to all the members of the Analysis Group not already mentioned above, and listed here in no particular order: Mois{\'e}s Hern{\'a}ndez--Fern{\'a}ndez, Fidel Alfaro--Almagro, Samuel J.\ Harrison, Jonathan Hadida, Giles Colclough, Zobair Arya, Emmanuel Vallee, Riham Satti, Eugene P.\ Duff, Matteo Bastiani, Evangelos Roussos, Michiel Cottaar, Eelke Visser, Stamatios Sotiropoulos, Mark Jenkinson, Jesper Andersson, Saad Jbabdi, Janine Bijsterbosch,  Oiwi Parker Jones, Sean Fitzgibbon, Paul McCarthy, Ludovica Griffanti, Emma Robinson, Jelena Bo\v{z}ek Mouthuy, David Flitney and Duncan Mortimer. Additionally, I would like to thank Susan Field for being tirelessly solicitous since even before the time I arrived.
+At \textsc{fmrib}, the list is long and, again, in the hope of not unfairly omitting anyone, I am much thankful to the members of the Analysis Group listed here in no particular order: Mois{\'e}s Hern{\'a}ndez--Fern{\'a}ndez, Fidel Alfaro--Almagro, Samuel J.\ Harrison, Jonathan Hadida, Giles L.\ Colclough, Zobair Arya, Emmanuel Vallee, Riham Satti, Gwena\"{e}lle Douaud, Eugene P.\ Duff, Gerard R.\ Ridgway, Diego Vidaurre, Matteo Bastiani, Evangelos Roussos, Michiel Cottaar, Eelke Visser, Stamatios Sotiropoulos, Mark Jenkinson, Jesper L.\ Andersson, Saad Jbabdi, Mark Woolrich, Christian F.\ Beckmann, Janine Bijsterbosch, Oiwi Parker Jones, Matthew A.\ Webster, Sean Fitzgibbon, Paul McCarthy, Ludovica Griffanti, Emma C.\ Robinson, Jelena Bo\v{z}ek Mouthuy, David Flitney, Duncan Mortimer, Thomas E.\ Nichols and Stephen M.\ Smith. Additionally, I would like to thank Susan Field and Marilyn Goulding for being tirelessly solicitous since even before the time I arrived.
 
 \vspace{3mm}\noindent
-Finally, I would like to thank the Sir Edward Penley Abraham Fund and St.\ Edmund Hall for the honour of being twice the recipient of the ``Cephalosporin Award'', providing the much needed further support during this period, and the Nuffield Department of Clinical Neurosciences and St.\ Edmund Hall for the funding that allowed attending and presenting work at conferences.
+It would have been far more difficult to do this work without the use of free software. I very much thank every person who contributes, directly or indirectly, to the development of these tools.
+
+\vspace{3mm}\noindent
+Finally, I would like to thank the Sir Edward Penley Abraham Fund and St.\ Edmund Hall for the honour of being twice the recipient of the ``Cephalosporin Award'', providing the much needed further support during this period, and the Nuffield Department of Clinical Neurosciences and St.\ Edmund Hall for the funding that facilitated attending and presenting work at conferences.

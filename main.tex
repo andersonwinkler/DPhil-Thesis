@@ -37,18 +37,23 @@
 \setmonofont[Scale=MatchLowercase]{Linux Libertine Mono O}
 \renewcommand{\thepage}{\arabic{page}} % font for the page numbers as lining
 
+\hyphenpenalty=0  % default 50
+\tolerance=1000      % default 200
+
+
 % Format for the captions
 \usepackage[labelfont=bf,font=small]{caption}
 % \usepackage[bf,small,sf]{caption}
 
 % Some colors
-\definecolor{colorlink}{rgb}{0, 0.29020, 0.58824}  % dark blue
-%\definecolor{colorlink}{rgb}{0, .14510, 0.29412}  % oxford blue
+%\definecolor{colorlink}{rgb}{0, 0.29020, 0.58824}  % dark blue
+\definecolor{colorlink}{rgb}{0, .14510, 0.29412}  % oxford blue
 \definecolor{darkgreen}{rgb}{0, .5, 0}  % dark green
 \definecolor{orange}{rgb}{.7, .40, 0}   % some orange
-\definecolor{lightgray}{rgb}{.8, .8, .8}   % some orange
+\definecolor{lightgray}{rgb}{.8, .8, .8}   % light gray
 \definecolor{grey}{rgb}{.6, .6, .6}     % some grey
 \definecolor{oxblue}{rgb}{0, .14510, 0.29412}
+\definecolor{teddy}{rgb}{0.66275, 0.13333, 0.16863}
 
 % Hyperlinks setup and meta-information
 \usepackage{hyperref}
@@ -124,7 +129,7 @@
 
 % Line spacing
 %\linespread{1.35} % this affects everything
-\newcommand{\lspac}{1.35}  % this affects only the main text, not footnotes, captions or tables
+\newcommand{\lspac}{1.5}  % this affects only the main text, not footnotes, captions or tables
 \setlength{\skip\footins}{10mm} % distance between text and footnotes
 \setlength{\footnotesep}{4mm} % distance between the actual footnotes
 
@@ -157,6 +162,5 @@
 \addcontentsline{toc}{chapter}{References}
 \setstretch{1}
 \bibliography{biblio}
-\pagestyle{empty}
-%\cleardoublepage \include{90finalpages}
+\cleardoublepage \include{90finalpages}
 \end{document}          
