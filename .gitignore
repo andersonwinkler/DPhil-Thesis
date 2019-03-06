@@ -7,6 +7,10 @@
 *.lot
 *.out
 *.toc
+*.nlo
+*.nlg
+*.nls
 *.gz
 *.pdf
 *~
+.DS_Store

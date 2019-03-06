@@ -49,7 +49,7 @@ The volume of cortical grey matter is also an areal quantity, which therefore re
 \begin{figure}[!tp]
 \begin{center}
 \includegraphics[width=\textwidth]{figures/pyramid.pdf}
-\caption[A \textsc{3-d} diagram with the proposed solution to measure the cortical volume.]{(\emph{a}) In the surface representation, the cortex is limited internally by the white and externally by the pial surface. (\emph{b}) and (\emph{c}) These two surfaces have matching vertices that can be used to delineate an oblique truncated triangular pyramid. (\emph{d}) The six vertices of this pyramid can be used to define three tetrahedra, the volumes of which are computed analytically.}
+\caption[A \textsc{3-d} diagram with the proposed solution to measure the cortical volume.]{A \textsc{3-d} diagram with the proposed solution to measure the cortical volume. (\emph{a}) In the surface representation, the cortex is limited internally by the white and externally by the pial surface. (\emph{b}) and (\emph{c}) These two surfaces have matching vertices that can be used to delineate an oblique truncated triangular pyramid. (\emph{d}) The six vertices of this pyramid can be used to define three tetrahedra, the volumes of which are computed analytically.}
 \label{fig:pyramid}
 \end{center}
 \end{figure}
@@ -58,13 +58,35 @@ Quantitative measurements, such as from positron emission tomography (\textsc{pe
 
 \subsection{Non-parametric combination (\textsc{npc})}
 
-Instead of volume, we suggest that a joint approach can be used for the analysis of thickness and area. Classical multivariate tests such as \textsc{mancova}, however, are not informative about the direction of any observed effects, and are based on assumptions that are known not to hold for surface area, such as normality. Rather, the permutation-based non-parametric combination (\textsc{npc}) \citep{Pesarin2010, Winkler2016_npc} provides a test for directional as well as two-tailed hypotheses, and is based on minimal assumptions, mainly that of exchangeability, that is, swapping one datum for another keeps the data just as likely. The \textsc{npc} consists of, in a first phase, testing separately hypotheses on each available metric using permutations that are performed in synchrony; these tests are termed \emph{partial tests}. The resulting statistics for each and every permutation are recorded, allowing an estimate of the complete empirical cumulative distribution function (cdf) to be constructed for each one. In a second phase, the empirical p-values for each test are combined, for each permutation, into a \emph{joint statistic}. As the joint statistic is produced from the previous permutations, an estimate of its empirical cdf function is immediately known, and so is its corresponding p-value \citep{Pesarin2010}.
+Instead of volume, we suggest that a joint approach can be used for the analysis of thickness and area. Classical multivariate tests such as \textsc{mancova}, however, are not informative about the direction of any observed effects, and are based on assumptions that are known not to hold for surface area, such as normality. Rather, the permutation-based non-parametric combination (\textsc{npc}) \citep{Pesarin2010, Winkler2016_npc} provides a test for directional as well as two-tailed hypotheses, and is based on minimal assumptions, mainly that of exchangeability, that is, swapping one datum for another keeps the data just as likely. The \textsc{npc} consists of, in a first phase, testing separately hypotheses on each available metric using permutations that are performed in synchrony; these tests are termed \emph{partial tests}. The resulting statistics for each and every permutation are recorded, allowing an estimate of the complete empirical cumulative distribution function (cdf) to be constructed for each one. In a second phase, the empirical p-values for each test are combined, for each permutation, into a \emph{joint statistic}. As the joint statistic is produced from the previous permutations, all of which have been recorded, an estimate of its empirical cdf function is immediately known, and so is its corresponding p-value \citep{Pesarin2010}.
 
 As originally proposed, and as described above, \textsc{npc} is not practicable in brain imaging: as the statistics for all partial tests for all permutations need to be recorded, an enormous amount of space for data storage is necessary. However, even if storage space were not a problem, the discreteness of the p-values for the partial tests is problematic when correcting for multiple testing, because with thousands of vertices in a surface, ties occur frequently, further causing ties among the combined statistics. If too many tests across an image share the same most extreme statistic, correction for the multiplicity, while still valid, is less powerful \citep{Westfall1993, Pantazis2005}. The most obvious workaround --- run an ever larger number of permutations to break the ties --- may not be possible for small sample sizes, or when possible, requires correspondingly larger data storage. The solution to this problem is loosely based on the direct combination of the test statistics, by converting the statistics of the partial tests to values that behave as p-values using the asymptotic distribution of the statistics, and using these for the combination \citep{Winkler2016_npc}.
 
 \paragraph{Combining functions}
 
-The null hypothesis of the \textsc{npc} is that the null hypotheses for all partial tests are true, and the alternative is that any test is false, which is the same that a union-intersection test (\textsc{uit}) \citep{Roy1953}. The rejection region depends on how the combined statistic is produced. Various combining functions can be considered, particularly those used in meta-analyses, such as Fisher's combination of p-values, i.e., $T=-2\sum_k\ln(p_k)$ \citep{Fisher1932} and Stouffer's combination of $z$-statistics, i.e., $T = \sum_k \Phi^{-1}(1-p_k)/\sqrt{K}$ \citep{Stouffer1949}, where $T$ is the test statistic for the joint test, $p_k$ is the p-value of the $k$-th out of $K$ partial tests, and $\Phi^{-1}$ is the probit function. These and most other combining functions, related statistics and their distributions were originally derived under the assumption of independence among the partial tests, which is not always valid, particularly under the tenable hypothesis of shared environmental effects affecting both area and thickness. Such lack of independence is not a problem for \textsc{npc}: the synchronised permutations implicitly capture the dependencies among the tests that would cause a parametric combination to be invalid, even if using the same combining functions.
+The null hypothesis of the \textsc{npc} is that the null hypotheses for all partial tests are true, and the alternative is that any test is false, which is the same that a union-intersection test (\textsc{uit}) \citep{Roy1953}. The rejection region depends on how the combined statistic is produced. Various combining functions can be considered, particularly those used in meta-analyses, such as those listed in Table~\ref{tab:combining_functions}. These and most other combining functions, related statistics and their distributions were originally derived under the assumption of independence among the partial tests, which is not always valid, particularly under the tenable hypothesis of shared environmental effects affecting both area and thickness. Such lack of independence is not a problem for \textsc{npc}: the synchronised permutations implicitly capture the dependencies among the tests that would cause a parametric combination to be invalid, even if using the same combining functions.
+
+\begin{table}[!tp]
+\caption[Some combining functions that can be used with \textsc{npc}.]{Some common combining functions that can be used with \textsc{npc}. For a more comprehensive list, see \citet{Winkler2016_npc}.}
+\begin{center}
+\hspace*{-0mm}\begin{tabular}{@{}ll@{}}
+\toprule
+Function & Test statistic\\
+\midrule
+\citet{Tippett1931} & $\min \left(p_{k}\right)$ \\[6pt]
+\citet{Fisher1932} & $-2 \sum_{k=1}^{K} \ln\left(p_{k}\right)$ \\[6pt]
+\citet{Stouffer1949} & $\frac{1}{\sqrt{K}} \sum_{k=1}^{K} \Phi^{-1}\left(1-p_{k}\right)$ \\[6pt]
+\citet{Mudholkar1979} & $\frac{1}{\pi}\sqrt{\frac{3(5K+4)}{K(5K+2)}}\sum_{k=1}^{K} \ln\left(\frac{1-p_{k}}{p_{k}}\right)$\\[3pt]
+\bottomrule   
+\end{tabular}
+\end{center}
+{\footnotesize
+The combining functions are shown as function of the p-values for the partial tests, but for certain methods, the test statistic for the partial tests, if available, can be used directly.
+$K$ is the number of tests being combined,
+$p_{k}$, $k=\left\{1,2,\ldots,K\right\}$ are the partial p-values,
+$\Phi^{-1}$ is the probit function\par}
+\label{tab:combining_functions}
+\end{table}
 
 \section{Methods}
 \label{sec:cortex:methods}
@@ -83,15 +105,32 @@ We evaluate (\textsc{i}) if and where the four different interpolation methods (
 
 \subsection{Subjects}
 
-In the period 1986--88, 121 preterm newborns with very low birth weight (\textsc{vlbw}; $\leqslant$~1500g) were admitted to the Neonatal Intensive Care Unit at the St.\ Olav University Hospital in Trondheim, Norway. At age 20, a total of 41 \textsc{vlbw} subjects consented to participate and had usable \textsc{mri} data. The term-born controls were born at the same hospital in the same period. A random sample of women with parities 1 or 2 was selected for follow-up during pregnancy. At birth, 122 children with birth weight above the tenth percentile for gestational age from this sample were included as controls. At age 20, a total of 59 control subjects consented to participate and had usable \textsc{mri} data. Further details can be found in \citet{Martinussen2005, Skranes2007}.
+In the period 1986--88, 121 preterm newborns with very low birth weight (\textsc{vlbw}; $\leqslant$~1500g) were admitted to the Neonatal Intensive Care Unit at the St.\ Olav University Hospital in Trondheim, Norway. At age 20, a total of 41 \textsc{vlbw} subjects consented to participate and had usable \textsc{mri} data. The term-born controls were born at the same hospital in the same period. A random sample of women with parities 1 or 2 was selected for follow-up during pregnancy. At birth, 122 children with birth weight above the tenth percentile for gestational age from this sample were included as controls. At age 20, a total of 59 control subjects consented to participate and had usable \textsc{mri} data. Details about the sample are provided in Table~\ref{tab:sample}, additional details can be found in \citet{Martinussen2005, Skranes2007}.
+
+\begin{table}[!tp]
+\caption[Details about the sample.]{Characteristics of the sample of participants of the study; additional details can be found in \citet{Martinussen2005, Skranes2007}.}
+\begin{center}
+\hspace*{-0mm}\begin{tabular}{@{}lll@{}}
+\toprule
+Clinical characteristics & \textsc{vlbw} & Controls\\
+\midrule
+Birth weight, in grams    & 1232.1 $\pm$ 221.9 & 3693.3 $\pm$ 504.5 \\
+Gestational age, in weeks & 29.3 $\pm$ 2.51 & 39.8 $\pm$ 1.28 \\
+Age at scanning, in years & 20.1 $\pm$ 0.77 & 20.3 $\pm$ 0.52 \\
+Sex (\textsc{m/f})        & 23/18 & 35/16 \\
+\bottomrule   
+\end{tabular}
+\end{center}
+\label{tab:sample}
+\end{table}
 
 \subsection{Data acquisition}
 
-\textsc{mri} scanning was performed on a 1.5~T Siemens \textsc{magnetom} Symphony scanner equipped with a quadrature head coil. In each scanning session, two sagittal $T_1$-weighted magnetization prepared rapid gradient echo (\textsc{mprage}) scans/sequences were acquired (echo time = 3.45~ms, repetition time = 2730~ms, inversion time = 1000~ms, flip angle = 7\degree; field of view = 256~mm, voxel size = 1 $\times$ 1 $\times$ 1.33~mm, acquisition matrix 256 $\times$ 192 $\times$ 128).  
+Magnetic resonance imaging was performed on a 1.5~T Siemens \textsc{magnetom} Symphony scanner equipped with a quadrature head coil. In each scanning session, two sagittal $T_1$-weighted magnetization prepared rapid gradient echo (\textsc{mprage}) scans/sequences were acquired (echo time = 3.45~ms, repetition time = 2730~ms, inversion time = 1000~ms, flip angle = 7\degree; field of view = 256~mm, voxel size = 1 $\times$ 1 $\times$ 1.33~mm, acquisition matrix 256 $\times$ 192 $\times$ 128).  
 
 \subsection{Reconstruction of the cortical surface}
 
-We used the method implemented in the FreeSurfer software package \cite[version 5.3.0;][]{Dale1999,Fischl1999_cortical}: $T_1$-weighted images are first corrected for magnetic field inhomogeneities and then skull-stripped \citep{Segonne2004}. Voxels belonging to the white matter (\textsc{wm}) are identified based on their locations, on their intensities, and on the intensities of the neighbouring voxels. A mass of connected \textsc{wm} voxels is produced for each hemisphere, using a six-neighbours connectivity scheme, and a mesh of triangular faces is tightly built around this mass, using two triangles for each externally facing voxel side. The mesh is smoothed taking into account the local intensity in the original images \citep{Dale1993}, at a subvoxel resolution. Defects are corrected \citep{Fischl2001,Segonne2007} to ensure that the surface has the same topological properties of a sphere. A second iteration of smoothing is applied, resulting in a realistic representation of the interface between gray and white matter (the \emph{white surface}). The external cortical surface (the \emph{pial surface}), which corresponds to the pia mater, is produced by nudging outwards the white surface towards a point where the tissue contrast is maximal, between gray matter and \textsc{csf}, maintaining constraints on its smoothness while preventing self-intersection. Cortical thickness is measured as the distance between the matching vertices of these two surfaces \citep{Fischl2000}.
+We used the method implemented in the FreeSurfer software package \cite[version 5.3.0;][]{Dale1999,Fischl1999_cortical}: $T_1$-weighted images are first corrected for magnetic field inhomogeneities and then skull-stripped \citep{Segonne2004}. Voxels belonging to the white matter (\textsc{wm}) are identified based on their locations, on their intensities, and on the intensities of the neighbouring voxels. A mass of connected \textsc{wm} voxels is produced for each hemisphere, using a six-neighbours connectivity scheme, and a mesh of triangular faces is tightly built around this mass, using two triangles for each externally facing voxel side. The mesh is smoothed taking into account the local intensity in the original images \citep{Dale1993}, at a subvoxel resolution. Defects are corrected \citep{Fischl2001,Segonne2007} to ensure that the surface has the same topological properties of a sphere. A second iteration of smoothing is applied, resulting in a realistic representation of the interface between gray and white matter (the \emph{white surface}). The external cortical surface (the \emph{pial surface}), which corresponds to the pia mater, is produced by nudging outwards the white surface towards a point where the tissue contrast is maximal, between the gray matter and the cerebrospinal fluid, maintaining constraints on its smoothness while preventing self-intersection. Cortical thickness is measured as the distance between the matching vertices of these two surfaces \citep{Fischl2000}.
 
 \subsection{Measurement of areal quantities}
 
@@ -216,7 +255,7 @@ All methods preserve generally well the global amount of surface area, and there
 
 \begin{figure}[!p]
 \begin{adjustbox}{addcode={\begin{minipage}{\width}}{
-\caption[Pairwise average differences and correlations between the four resampling methods.]{Pairwise average differences (in mm$^2$) and correlations between the four resampling methods, using the \textsc{ic}7 as target, with or without smoothing with a Gaussian kernel of \textsc{fwhm} = 10~mm, projected to the average white surface. Although the four methods differ, with some leading to substantial, undesirable losses and gains in surface area, and the introduction of noise manifested by lower correlations, the average variation was zero for nearest neighbour, redistributive and pycnophylactic. The retessellation method led to substantial losses of area that could not be recovered or compensated by blurring. Although this method showed excellent correlation with pycnophylactic, quantitative results after interpolation are biased downwards. For the medial views, for the right hemisphere, for \textsc{ic}3 and \textsc{ic5}, and for projections to the pial and inflated surfaces, consult Appendix \ref{sec:supplmat}.4.}
+\caption[Pairwise average differences and correlations between the four resampling methods.]{Pairwise average differences (in mm$^2$) and correlations between the four resampling methods, using the \textsc{ic}7 as target, with or without smoothing with a Gaussian kernel of \textsc{fwhm} = 10~mm, projected to the average white surface. Although the four methods differ, with some leading to substantial, undesirable losses and gains in surface area, and the introduction of noise manifested by lower correlations, the average variation was zero for nearest neighbour, redistributive and pycnophylactic. The retessellation method led to substantial losses of area that could not be recovered or compensated by blurring. Although this method showed excellent correlation with pycnophylactic, quantitative results after interpolation are biased downwards. For the medial views, for the right hemisphere, for \textsc{ic}3 and \textsc{ic}5, and for projections to the pial and inflated surfaces, consult Appendix \ref{sec:supplmat}.4.}
 \label{fig:diff+corr}
 \end{minipage}},rotate=90,center}
 \includegraphics[scale=1.1]{figures/diff+corr.pdf}
@@ -239,9 +278,28 @@ At the local scale, differences between the product and the analytic methods of 
 \label{fig:maps_vols}
 \end{figure}
 
-\subsection{Variability of thickness, area and volume}
+\subsection{Global measurements and their variability}
 
-Regardless of the methods, variability of area is higher than for thickness, and even higher for volume: the average coefficient of variation across subjects ($100\cdot\sigma/\mu$) was, respectively, 9.9\%, 3.2\% and 10.5\%, after adjusting for group, age, and sex, with the parietal region (bilateral) being the most variable for all measurements (for spatial maps, see Appendix \ref{sec:supplmat}.4.3).
+Average global cortical area, thickness, and volume (using both methods) across subjects in the sample are shown in Table~\ref{tab:global}. Cortical volumes assessed with the multiplicative method are significantly higher ($p < 0.0001$) than using the analytic method. Variability for area is higher than for thickness, and even higher for volume: the average coefficient of variation across subjects ($100\cdot\sigma/\mu$) was, respectively, 9.9\%, 3.2\% and 10.5\%, after adjusting for the variables group, age, and sex (that is, computing the global mean in a general linear model that included these variables in the design, and using the standard deviation of the residuals). The parietal region (bilateral) was the most variable for all measurements; corresponding spatial maps are shown in Figure~\ref{fig:variability}. Correlation and Bland--Altman plots are shown in Appendix \ref{sec:supplmat}.4.3.
+
+\begin{table}[!tp]
+\caption{Average $\pm$ standard deviation of area (in mm$^2$), thickness (in mm) and volume (in mm$^3$) across subjects. Volumes are shown assessed using the multiplicative ($m$) and analytic ($a$) methods, as well as their difference.}
+{\small
+\begin{center}
+\hspace*{-0mm}\begin{tabular}{@{}llll@{}}
+\toprule
+Measure               & Left hemisphere      & Right hemisphere     & Both hemispheres\\ 
+\midrule
+Area                  & $97104.3 \pm 9594.8$   & $97767.7 \pm 9684.4$   & $194872.0 \pm 19247.6$\\
+Thickness             & $2.5357 \pm 0.0951$    & $2.5273 \pm 0.0914$    & $2.5314 \pm 0.0921$\\
+Volume$^{(m)}$        & $246268.9 \pm 26416.7$ & $247131.0 \pm 26529.9$ & $493399.9 \pm 52855.7$\\
+Volume$^{(a)}$        & $242580.3 \pm 26141.4$ & $243688.3 \pm 26214.0$ & $486268.6 \pm 52266.3$\\
+Difference$^{(m-a)}$  & $3688.6 \pm 569.2$     & $3442.7 \pm 605.8$     & $7131.4 \pm 1087.2$\\
+\bottomrule   
+\end{tabular}
+\end{center}}
+\label{tab:global}
+\end{table}
 
 \begin{figure}[!p]
 \begin{adjustbox}{addcode={\begin{minipage}{\width}}{

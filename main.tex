@@ -24,6 +24,11 @@
 \usepackage{gensymb}
 \usepackage{adjustbox}
 
+% Abbreviations
+\usepackage[intoc]{nomencl}
+\makenomenclature
+\renewcommand{\nomname}{Abbreviations}
+
 % Temporary packages for testing
 % \usepackage{graphicx}              % comment this out with XeLaTeX, but keep with pdfLaTeX
 %
@@ -150,7 +155,10 @@
 \setstretch{\lspac}
 \cleardoublepage \tableofcontents
 \cleardoublepage \listoffigures
+\addcontentsline{toc}{chapter}{\listfigurename}
 \cleardoublepage \listoftables
+\addcontentsline{toc}{chapter}{\listtablename}
+\cleardoublepage \include{05abbreviations}
 \cleardoublepage \include{10intro}
 \cleardoublepage \include{20ptree}
 \cleardoublepage \include{30accel}
