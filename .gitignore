@@ -11,6 +11,5 @@
 *.nlg
 *.nls
 *.gz
-*.pdf
 *~
 .DS_Store
